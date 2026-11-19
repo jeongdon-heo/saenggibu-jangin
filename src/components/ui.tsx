@@ -85,7 +85,10 @@ export function Modal({
 }) {
   const onCloseRef = useRef(onClose);
   const titleId = useId();
-  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

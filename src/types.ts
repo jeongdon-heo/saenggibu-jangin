@@ -1,4 +1,4 @@
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 
 export type Semester = 1 | 2;
 
@@ -106,6 +106,35 @@ export type StudentRecord = {
   updatedAt: string;
 };
 
+export type ScoreMark = "correct" | "incorrect" | "partial" | "unscored";
+
+export type SurveyAnswer = {
+  questionId: string;
+  raw: string;
+  autoScore: ScoreMark;
+  teacherScore: "" | "correct" | "incorrect" | "partial";
+  note: string;
+};
+
+export type SurveyResponse = {
+  id: string;
+  studentId: string | null;
+  numberText: string;
+  submittedAt: string;
+  answers: SurveyAnswer[];
+};
+
+export type LevelEstimate = {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  elementId: string;
+  elementName: string;
+  suggestedLevel: string;
+  teacherLevel: string;
+  note: string;
+};
+
 export type AppData = {
   version: typeof DATA_VERSION;
   classInfo: ClassInfo;
@@ -113,6 +142,8 @@ export type AppData = {
   subjects: Subject[];
   records: StudentRecord[];
   questions: Question[];
+  responses: SurveyResponse[];
+  levelEstimates: LevelEstimate[];
   aiSettings: AiSettings;
 };
 

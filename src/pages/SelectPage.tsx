@@ -20,7 +20,7 @@ export function SelectPage() {
       <PageHeader
         eyebrow="3단계 · 사용 가능"
         title="과목별 문제 선택"
-        description="확정한 문제 가운데 나중에 설문으로 보낼 것을 고릅니다. 구글 폼으로 만드는 단계는 아직 준비 중입니다."
+        description="확정한 문제 가운데 설문으로 보낼 것을 고릅니다. 고른 문제는 구글 폼 배포 화면에서 미리 볼 수 있습니다."
       />
       <AiReviewNote />
       {data.subjects.length === 0 ? (

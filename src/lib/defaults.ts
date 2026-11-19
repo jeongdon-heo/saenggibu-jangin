@@ -11,7 +11,7 @@ export function emptySubject(id: string, name: string): Subject {
 
 export function emptyData(): AppData {
   return {
-    version: 2,
+    version: 3,
     classInfo: {
       schoolYear: 2026,
       semester: 2,
@@ -22,6 +22,8 @@ export function emptyData(): AppData {
     subjects: [],
     records: [],
     questions: [],
+    responses: [],
+    levelEstimates: [],
     aiSettings: defaultAiSettings(),
   };
 }
@@ -44,11 +46,12 @@ export function createDemoData(current?: ClassInfo): AppData {
   const subjectId = createId();
   const standardId = createId();
   const unitId = createId();
+  const elementId = createId();
   const first = students[0];
   if (!first) return emptyData();
 
   return {
-    version: 2,
+    version: 3,
     classInfo,
     students,
     subjects: [
@@ -90,7 +93,7 @@ export function createDemoData(current?: ClassInfo): AppData {
         ],
         elements: [
           {
-            id: createId(),
+            id: elementId,
             name: "(예시) 중심 내용 파악",
             unitId,
             standardCodes: ["4국02-01"],
@@ -104,7 +107,42 @@ export function createDemoData(current?: ClassInfo): AppData {
         ],
       },
     ],
-    questions: [],
+    questions: [
+      {
+        id: createId(),
+        subjectId,
+        elementId,
+        elementName: "(예시) 중심 내용 파악",
+        standardCodes: ["4국02-01"],
+        targetLevel: "잘함",
+        type: "choice",
+        prompt: "(예시) 이 이야기에서 가장 중요한 내용은 무엇인가요?",
+        choices: ["집을 찾았다", "비를 맞았다", "노래를 불렀다"],
+        answer: "집을 찾았다",
+        rubric: "(예시) 중심 내용을 고르면 잘함",
+        approved: true,
+        selected: true,
+        order: 1,
+      },
+      {
+        id: createId(),
+        subjectId,
+        elementId,
+        elementName: "(예시) 중심 내용 파악",
+        standardCodes: ["4국02-01"],
+        targetLevel: "보통",
+        type: "essay",
+        prompt: "(예시) 중심 내용을 자신의 말로 써 보세요.",
+        choices: [],
+        answer: "",
+        rubric: "(예시) 자신의 말로 설명하면 잘함, 일부만 말하면 보통.",
+        approved: true,
+        selected: true,
+        order: 2,
+      },
+    ],
+    responses: [],
+    levelEstimates: [],
     aiSettings: defaultAiSettings(),
     records: [
       {

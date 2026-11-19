@@ -7,8 +7,11 @@ import type {
   ClassInfo,
   EvaluationElement,
   LevelCriterion,
+  LevelEstimate,
   Question,
   Result,
+  SurveyAnswer,
+  SurveyResponse,
   Semester,
   Standard,
   Student,
@@ -340,7 +343,7 @@ function normalizeRecords(value: unknown, students: Student[], subjects: Subject
 
 export function normalizeAppData(value: unknown): Result<AppData> {
   if (!isRecord(value)) return { ok: false, error: "생기부장인 백업 파일이 아닙니다." };
-  if (value.version !== 1 && value.version !== 2) return { ok: false, error: "이 버전에서 열 수 없는 백업 파일입니다." };
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3) return { ok: false, error: "이 버전에서 열 수 없는 백업 파일입니다." };
   const classInfo = normalizeClass(value.classInfo);
   if (!classInfo.ok) return classInfo;
   const students = normalizeStudents(value.students ?? []);
@@ -351,18 +354,100 @@ export function normalizeAppData(value: unknown): Result<AppData> {
   if (!records.ok) return records;
   const questions = normalizeQuestions(value.questions, subjects.data);
   if (!questions.ok) return questions;
+  const responses = normalizeResponses(value.responses, students.data, questions.data);
+  if (!responses.ok) return responses;
+  const levelEstimates = normalizeEstimates(value.levelEstimates, students.data, subjects.data);
+  if (!levelEstimates.ok) return levelEstimates;
   return {
     ok: true,
     data: {
-      version: 2,
+      version: 3,
       classInfo: classInfo.data,
       students: students.data,
       subjects: subjects.data,
       records: records.data,
       questions: questions.data,
+      responses: responses.data,
+      levelEstimates: levelEstimates.data,
       aiSettings: normalizeAiSettings(value.aiSettings),
     },
   };
+}
+
+function normalizeResponses(value: unknown, students: Student[], questions: Question[]): Result<SurveyResponse[]> {
+  if (value === undefined) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "응답 형식이 올바르지 않습니다." };
+  if (value.length > LIMITS.responses) return { ok: false, error: "응답이 너무 많습니다." };
+  const studentIds = new Set(students.map((student) => student.id));
+  const questionIds = new Set(questions.map((question) => question.id));
+  const responses: SurveyResponse[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "응답 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const numberText = asString(item.numberText, 20, "");
+    if (!id || numberText === null) return { ok: false, error: "응답 형식이 올바르지 않습니다." };
+    const studentId = item.studentId === null || item.studentId === undefined || item.studentId === "" ? null : asString(item.studentId, 80);
+    if (studentId && !studentIds.has(studentId)) return { ok: false, error: "응답과 학생 연결이 맞지 않습니다." };
+    if (!Array.isArray(item.answers)) return { ok: false, error: "응답 형식이 올바르지 않습니다." };
+    const answers: SurveyAnswer[] = [];
+    for (const answer of item.answers) {
+      if (!isRecord(answer)) return { ok: false, error: "응답 형식이 올바르지 않습니다." };
+      const questionId = asString(answer.questionId, 80);
+      const raw = asString(answer.raw, LIMITS.questionText, "");
+      if (!questionId || !questionIds.has(questionId) || raw === null) return { ok: false, error: "응답 문항 연결이 맞지 않습니다." };
+      const autoScore = answer.autoScore;
+      const teacherScore = answer.teacherScore;
+      if (autoScore !== "correct" && autoScore !== "incorrect" && autoScore !== "partial" && autoScore !== "unscored") {
+        return { ok: false, error: "채점 형식이 올바르지 않습니다." };
+      }
+      if (teacherScore !== "" && teacherScore !== "correct" && teacherScore !== "incorrect" && teacherScore !== "partial") {
+        return { ok: false, error: "채점 형식이 올바르지 않습니다." };
+      }
+      answers.push({
+        questionId,
+        raw,
+        autoScore,
+        teacherScore,
+        note: asString(answer.note, LIMITS.standardText, "") ?? "",
+      });
+    }
+    responses.push({
+      id,
+      studentId,
+      numberText,
+      submittedAt: asString(item.submittedAt, 80, "") ?? "",
+      answers,
+    });
+  }
+  return { ok: true, data: responses };
+}
+
+function normalizeEstimates(value: unknown, students: Student[], subjects: Subject[]): Result<LevelEstimate[]> {
+  if (value === undefined) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "수준 추정 형식이 올바르지 않습니다." };
+  const studentIds = new Set(students.map((student) => student.id));
+  const subjectIds = new Set(subjects.map((subject) => subject.id));
+  const estimates: LevelEstimate[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "수준 추정 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const studentId = asString(item.studentId, 80);
+    const subjectId = asString(item.subjectId, 80);
+    if (!id || !studentId || !subjectId || !studentIds.has(studentId) || !subjectIds.has(subjectId)) {
+      return { ok: false, error: "수준 추정과 학생 연결이 맞지 않습니다." };
+    }
+    estimates.push({
+      id,
+      studentId,
+      subjectId,
+      elementId: asString(item.elementId, 80, "") ?? "",
+      elementName: asString(item.elementName, LIMITS.shortField, "") ?? "",
+      suggestedLevel: asString(item.suggestedLevel, 20, "") ?? "",
+      teacherLevel: asString(item.teacherLevel, 20, "") ?? "",
+      note: asString(item.note, LIMITS.standardText, "") ?? "",
+    });
+  }
+  return { ok: true, data: estimates };
 }
 
 export function serializeBackup(data: AppData, exportedAt = new Date().toISOString()): string {

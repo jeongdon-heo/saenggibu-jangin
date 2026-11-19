@@ -12,7 +12,7 @@ import type { AppData } from "../types";
 
 function sample(): AppData {
   return {
-    version: 2,
+    version: 3,
     classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
     students: [{ id: "s1", number: 1, alias: "ㄱㄴ", realName: "" }],
     subjects: [
@@ -26,6 +26,8 @@ function sample(): AppData {
       },
     ],
     questions: [],
+    responses: [],
+    levelEstimates: [],
     aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
     records: [
       {
@@ -83,7 +85,7 @@ describe("백업 저장과 불러오기", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.students[0]).toEqual({ id: "s1", number: 1, alias: "별", realName: "" });
-      expect(result.data.version).toBe(2);
+      expect(result.data.version).toBe(3);
       expect(result.data.questions).toEqual([]);
     }
   });
@@ -103,6 +105,7 @@ describe("백업 저장과 불러오기", () => {
     expect(result.data.subjects[0]?.units).toEqual([]);
     expect(result.data.subjects[0]?.elements).toEqual([]);
     expect(result.data.questions).toEqual([]);
+    expect(result.data.responses).toEqual([]);
     expect(JSON.stringify(result.data)).not.toContain("sk-secret");
   });
 

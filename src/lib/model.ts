@@ -200,6 +200,13 @@ export function deleteSubject(data: AppData, id: string): AppData {
     subjects: data.subjects.filter((subject) => subject.id !== id),
     records: data.records.filter((record) => record.subjectId !== id),
     questions: data.questions.filter((question) => question.subjectId !== id),
+    responses: data.responses
+      .map((response) => ({
+        ...response,
+        answers: response.answers.filter((answer) => data.questions.find((question) => question.id === answer.questionId)?.subjectId !== id),
+      }))
+      .filter((response) => response.answers.length > 0),
+    levelEstimates: data.levelEstimates.filter((estimate) => estimate.subjectId !== id),
   };
 }
 

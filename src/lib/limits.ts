@@ -15,6 +15,7 @@ export const LIMITS = {
   elements: 80,
   levels: 8,
   questions: 200,
+  responses: 500,
   questionText: 4000,
   choices: 8,
   modelName: 80,

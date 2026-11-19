@@ -6,8 +6,10 @@ import { buildXlsxBytes } from "./xlsx";
 import type { AppData } from "../types";
 
 const data: AppData = {
-  version: 2,
+  version: 3,
   questions: [],
+  responses: [],
+  levelEstimates: [],
   aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
   classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
   students: [
