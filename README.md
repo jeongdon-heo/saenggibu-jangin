@@ -4,6 +4,8 @@
 
 학급 등록부터 나이스에 붙여넣을 문장까지, 여덟 단계를 이 브라우저 안에서 진행합니다.
 
+공개 주소: [https://jeongdon-heo.github.io/saenggibu-jangin/](https://jeongdon-heo.github.io/saenggibu-jangin/)
+
 ## 학생 정보는 이 브라우저에만
 
 - 계정, 서버 저장소, 데이터베이스가 없습니다.
@@ -29,7 +31,9 @@ npm run build   # 정적 파일 dist/
 npm run preview # 빌드 결과 확인
 ```
 
-`dist`는 정적 파일입니다. 주소에 `#`가 붙어서, 학교 웹서버나 GitHub Pages, Netlify, Cloudflare Pages에 `dist` 내용만 올리면 됩니다. 서버 프로그램과 환경 변수는 필요 없습니다. 주소는 `https`가 좋습니다. 그러면 문장 복사가 안정적으로 됩니다. 사이트에 접속해도 학생 기록은 그 브라우저 안에만 남습니다.
+`npm run dev`는 주소 루트에서 열립니다. `npm run build`는 GitHub Pages 경로 `/saenggibu-jangin/`에 맞춰 파일을 만듭니다. 그 결과를 보려면 `npm run preview` 후 [http://127.0.0.1:47321/saenggibu-jangin/](http://127.0.0.1:47321/saenggibu-jangin/) 을 엽니다.
+
+`main`에 푸시하면 GitHub Actions가 설치, 테스트, 빌드를 하고 `dist`를 GitHub Pages에 올립니다. 워크플로는 Pages가 꺼져 있으면 켜 보려고 하지만, Actions의 기본 토큰으로는 저장소의 Pages를 처음 만들지 못합니다. 배포가 그 단계에서 멈추면 저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 고르고, Actions 탭에서 워크플로를 다시 실행하세요. 서버 프로그램과 환경 변수는 필요 없습니다. 주소는 `https`라 문장 복사가 안정적입니다. 사이트에 접속해도 학생 기록은 그 브라우저 안에만 남습니다.
 
 ## 여덟 단계
 

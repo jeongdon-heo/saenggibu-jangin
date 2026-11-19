@@ -2,7 +2,10 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
+const pagesBase = "/saenggibu-jangin/";
+
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? pagesBase : "/",
   plugins: [react(), tailwindcss()],
   server: {
     host: "0.0.0.0",
@@ -18,4 +21,4 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
   },
-});
+}));
