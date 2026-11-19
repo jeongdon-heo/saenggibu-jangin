@@ -11,4 +11,11 @@ export const LIMITS = {
   standardText: 2000,
   writing: 20000,
   backupChars: 4_000_000,
+  units: 400,
+  elements: 80,
+  levels: 8,
+  questions: 200,
+  questionText: 4000,
+  choices: 8,
+  modelName: 80,
 } as const;

@@ -1,5 +1,7 @@
 import { ArrowDown, ArrowUp, Trash } from "lucide-react";
 import { useState } from "react";
+import { ElementsSection } from "../components/ElementsSection";
+import { UnitsSection } from "../components/UnitsSection";
 import { Button, cx, Field, Modal, PageHeader } from "../components/ui";
 import { useAppData } from "../context/DataContext";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -91,7 +93,7 @@ export function SubjectsPage() {
                     onClick={() => setSelectedId(item.id)}
                   >
                     {item.name}
-                    <span className="mt-0.5 block text-xs font-normal text-muted">성취기준 {item.standards.length}개</span>
+                    <span className="mt-0.5 block text-xs font-normal text-muted">성취기준 {item.standards.length} · 평가요소 {item.elements.length}</span>
                   </button>
                 </li>
               ))}
@@ -166,10 +168,12 @@ function SubjectEditor({ subject }: { subject: Subject }) {
 
       <PlanEditor subject={subject} />
       <StandardsEditor subject={subject} />
+      <UnitsSection subject={subject} />
+      <ElementsSection subject={subject} />
 
       {confirmDelete ? (
         <Modal title="이 과목을 지울까요?" onClose={() => setConfirmDelete(false)}>
-          <p>{subject.name}의 평가계획, 성취기준, 학생 문장이 함께 지워집니다.</p>
+          <p>{subject.name}의 평가계획, 성취기준, 단원, 평가요소, 문제, 학생 문장이 함께 지워집니다.</p>
           <div className="mt-5 flex justify-end gap-2">
             <Button variant="secondary" autoFocus onClick={() => setConfirmDelete(false)}>
               취소

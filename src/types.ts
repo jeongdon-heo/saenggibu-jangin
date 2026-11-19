@@ -1,4 +1,4 @@
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
 export type Semester = 1 | 2;
 
@@ -31,11 +31,70 @@ export type Standard = {
   text: string;
 };
 
+export type Unit = {
+  id: string;
+  order: number;
+  grade: number | null;
+  semester: number | null;
+  organization: string;
+  title: string;
+  content: string;
+  pages: string;
+  extraPages: string;
+  period: string;
+  totalPeriods: string;
+  materials: string;
+};
+
+export type LevelCriterion = {
+  id: string;
+  label: string;
+  description: string;
+};
+
+export type EvaluationElement = {
+  id: string;
+  name: string;
+  unitId: string;
+  standardCodes: string[];
+  levels: LevelCriterion[];
+  note: string;
+};
+
+export type QuestionTypeId = "choice" | "short" | "essay" | "check";
+
+export type Question = {
+  id: string;
+  subjectId: string;
+  elementId: string;
+  elementName: string;
+  standardCodes: string[];
+  targetLevel: string;
+  type: QuestionTypeId;
+  prompt: string;
+  choices: string[];
+  answer: string;
+  rubric: string;
+  approved: boolean;
+  selected: boolean;
+  order: number;
+};
+
+export type AiProviderId = "openai" | "gemini";
+
+export type AiSettings = {
+  provider: AiProviderId;
+  model: string;
+  rememberKey: boolean;
+};
+
 export type Subject = {
   id: string;
   name: string;
   plan: AssessmentItem[];
   standards: Standard[];
+  units: Unit[];
+  elements: EvaluationElement[];
 };
 
 export type StudentRecord = {
@@ -53,6 +112,8 @@ export type AppData = {
   students: Student[];
   subjects: Subject[];
   records: StudentRecord[];
+  questions: Question[];
+  aiSettings: AiSettings;
 };
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };

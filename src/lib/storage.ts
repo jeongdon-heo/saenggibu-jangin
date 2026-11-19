@@ -1,6 +1,21 @@
-import { emptyData } from "./defaults";
+import { defaultAiSettings, emptyData } from "./defaults";
 import { LIMITS } from "./limits";
-import type { AppData, AssessmentItem, ClassInfo, Result, Semester, Standard, Student, StudentRecord, Subject } from "../types";
+import type {
+  AiSettings,
+  AppData,
+  AssessmentItem,
+  ClassInfo,
+  EvaluationElement,
+  LevelCriterion,
+  Question,
+  Result,
+  Semester,
+  Standard,
+  Student,
+  StudentRecord,
+  Subject,
+  Unit,
+} from "../types";
 
 export const STORAGE_KEY = "saenggibujangin.v1";
 export const APP_ID = "saenggibujangin";
@@ -155,9 +170,141 @@ function normalizeSubjects(value: unknown): Result<Subject[]> {
     if (!standards.ok) return standards;
     ids.add(id);
     names.add(name);
-    subjects.push({ id, name, plan: plan.data, standards: standards.data });
+    const units = normalizeUnits(item.units ?? []);
+    if (!units.ok) return units;
+    const elements = normalizeElements(item.elements ?? []);
+    if (!elements.ok) return elements;
+    ids.add(id);
+    names.add(name);
+    subjects.push({ id, name, plan: plan.data, standards: standards.data, units: units.data, elements: elements.data });
   }
   return { ok: true, data: subjects };
+}
+
+function normalizeUnits(value: unknown): Result<Unit[]> {
+  if (!Array.isArray(value)) return { ok: false, error: "단원 형식이 올바르지 않습니다." };
+  if (value.length > LIMITS.units) return { ok: false, error: "단원이 너무 많습니다." };
+  const units: Unit[] = [];
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "단원 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const title = asString(item.title, LIMITS.shortField);
+    if (!id || !title) return { ok: false, error: "단원 이름이 없습니다." };
+    if (ids.has(id)) return { ok: false, error: "단원 구분값이 겹칩니다." };
+    const grade = item.grade === null || item.grade === undefined || item.grade === "" ? null : asInt(item.grade);
+    const semester = item.semester === null || item.semester === undefined || item.semester === "" ? null : asInt(item.semester);
+    if (grade === null && item.grade !== null && item.grade !== undefined && item.grade !== "") {
+      return { ok: false, error: "단원 학년이 올바르지 않습니다." };
+    }
+    ids.add(id);
+    units.push({
+      id,
+      order: asInt(item.order) ?? units.length + 1,
+      grade,
+      semester: semester === 1 || semester === 2 ? semester : semester === null ? null : null,
+      organization: asString(item.organization, LIMITS.shortField, "") ?? "",
+      title,
+      content: asString(item.content, LIMITS.standardText, "") ?? "",
+      pages: asString(item.pages, 40, "") ?? "",
+      extraPages: asString(item.extraPages, 40, "") ?? "",
+      period: asString(item.period, 40, "") ?? "",
+      totalPeriods: asString(item.totalPeriods, 40, "") ?? "",
+      materials: asString(item.materials, LIMITS.shortField, "") ?? "",
+    });
+  }
+  return { ok: true, data: units };
+}
+
+function normalizeLevels(value: unknown): Result<LevelCriterion[]> {
+  if (!Array.isArray(value)) return { ok: false, error: "수준별 기준 형식이 올바르지 않습니다." };
+  const levels: LevelCriterion[] = [];
+  for (const item of value.slice(0, LIMITS.levels)) {
+    if (!isRecord(item)) return { ok: false, error: "수준별 기준 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const label = asString(item.label, 20);
+    const description = asString(item.description, LIMITS.standardText, "");
+    if (!id || !label || description === null) return { ok: false, error: "수준 라벨이 없습니다." };
+    levels.push({ id, label, description });
+  }
+  return { ok: true, data: levels };
+}
+
+function normalizeElements(value: unknown): Result<EvaluationElement[]> {
+  if (!Array.isArray(value)) return { ok: false, error: "평가요소 형식이 올바르지 않습니다." };
+  if (value.length > LIMITS.elements) return { ok: false, error: "평가요소가 너무 많습니다." };
+  const elements: EvaluationElement[] = [];
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "평가요소 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const name = asString(item.name, LIMITS.shortField);
+    if (!id || !name) return { ok: false, error: "평가요소 이름이 없습니다." };
+    if (ids.has(id)) return { ok: false, error: "평가요소 구분값이 겹칩니다." };
+    const levels = normalizeLevels(item.levels ?? []);
+    if (!levels.ok) return levels;
+    const codes = Array.isArray(item.standardCodes) ? item.standardCodes.filter((code): code is string => typeof code === "string").slice(0, 12) : [];
+    ids.add(id);
+    elements.push({
+      id,
+      name,
+      unitId: asString(item.unitId, 80, "") ?? "",
+      standardCodes: codes,
+      levels: levels.data,
+      note: asString(item.note, LIMITS.standardText, "") ?? "",
+    });
+  }
+  return { ok: true, data: elements };
+}
+
+function normalizeQuestions(value: unknown, subjects: Subject[]): Result<Question[]> {
+  if (value === undefined) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "문제 형식이 올바르지 않습니다." };
+  if (value.length > LIMITS.questions) return { ok: false, error: "문제가 너무 많습니다." };
+  const subjectIds = new Set(subjects.map((subject) => subject.id));
+  const questions: Question[] = [];
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "문제 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const subjectId = asString(item.subjectId, 80);
+    const prompt = asString(item.prompt, LIMITS.questionText);
+    const type = item.type;
+    if (!id || !subjectId || !prompt || (type !== "choice" && type !== "short" && type !== "essay" && type !== "check")) {
+      return { ok: false, error: "문제 형식이 올바르지 않습니다." };
+    }
+    if (!subjectIds.has(subjectId) || ids.has(id)) return { ok: false, error: "문제와 과목 연결이 맞지 않습니다." };
+    ids.add(id);
+    const choices = Array.isArray(item.choices) ? item.choices.filter((choice): choice is string => typeof choice === "string").slice(0, LIMITS.choices) : [];
+    questions.push({
+      id,
+      subjectId,
+      elementId: asString(item.elementId, 80, "") ?? "",
+      elementName: asString(item.elementName, LIMITS.shortField, "") ?? "",
+      standardCodes: Array.isArray(item.standardCodes) ? item.standardCodes.filter((code): code is string => typeof code === "string").slice(0, 12) : [],
+      targetLevel: asString(item.targetLevel, 20, "") ?? "",
+      type,
+      prompt,
+      choices,
+      answer: asString(item.answer, LIMITS.questionText, "") ?? "",
+      rubric: asString(item.rubric, LIMITS.questionText, "") ?? "",
+      approved: item.approved === true,
+      selected: item.approved === true && item.selected === true,
+      order: asInt(item.order) ?? questions.length + 1,
+    });
+  }
+  return { ok: true, data: questions };
+}
+
+function normalizeAiSettings(value: unknown): AiSettings {
+  if (!isRecord(value)) return defaultAiSettings();
+  const provider = value.provider === "openai" || value.provider === "gemini" ? value.provider : "gemini";
+  const fallback = provider === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash";
+  return {
+    provider,
+    model: asString(value.model, LIMITS.modelName, fallback) || fallback,
+    rememberKey: value.rememberKey === true,
+  };
 }
 
 function normalizeRecords(value: unknown, students: Student[], subjects: Subject[]): Result<StudentRecord[]> {
@@ -193,7 +340,7 @@ function normalizeRecords(value: unknown, students: Student[], subjects: Subject
 
 export function normalizeAppData(value: unknown): Result<AppData> {
   if (!isRecord(value)) return { ok: false, error: "생기부장인 백업 파일이 아닙니다." };
-  if (value.version !== 1) return { ok: false, error: "이 버전에서 열 수 없는 백업 파일입니다." };
+  if (value.version !== 1 && value.version !== 2) return { ok: false, error: "이 버전에서 열 수 없는 백업 파일입니다." };
   const classInfo = normalizeClass(value.classInfo);
   if (!classInfo.ok) return classInfo;
   const students = normalizeStudents(value.students ?? []);
@@ -202,14 +349,18 @@ export function normalizeAppData(value: unknown): Result<AppData> {
   if (!subjects.ok) return subjects;
   const records = normalizeRecords(value.records ?? [], students.data, subjects.data);
   if (!records.ok) return records;
+  const questions = normalizeQuestions(value.questions, subjects.data);
+  if (!questions.ok) return questions;
   return {
     ok: true,
     data: {
-      version: 1,
+      version: 2,
       classInfo: classInfo.data,
       students: students.data,
       subjects: subjects.data,
       records: records.data,
+      questions: questions.data,
+      aiSettings: normalizeAiSettings(value.aiSettings),
     },
   };
 }

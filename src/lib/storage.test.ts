@@ -12,7 +12,7 @@ import type { AppData } from "../types";
 
 function sample(): AppData {
   return {
-    version: 1,
+    version: 2,
     classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
     students: [{ id: "s1", number: 1, alias: "ㄱㄴ", realName: "" }],
     subjects: [
@@ -21,8 +21,12 @@ function sample(): AppData {
         name: "국어",
         plan: [{ id: "p1", area: "읽기", content: "중심 내용", method: "관찰", ratio: "30%", note: "" }],
         standards: [{ id: "st1", code: "6국01-01", text: "성취기준 내용" }],
+        units: [],
+        elements: [],
       },
     ],
+    questions: [],
+    aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
     records: [
       {
         id: "r1",
@@ -77,14 +81,36 @@ describe("백업 저장과 불러오기", () => {
     };
     const result = parseBackup(JSON.stringify(raw));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.students[0]).toEqual({ id: "s1", number: 1, alias: "별", realName: "" });
+    if (result.ok) {
+      expect(result.data.students[0]).toEqual({ id: "s1", number: 1, alias: "별", realName: "" });
+      expect(result.data.version).toBe(2);
+      expect(result.data.questions).toEqual([]);
+    }
+  });
+
+  it("예전 백업에 없던 단원과 문제는 빈 목록으로 열고 API 키는 남기지 않는다", () => {
+    const raw = {
+      version: 1,
+      apiKey: "sk-secret",
+      classInfo: { schoolYear: 2026, semester: 2, grade: 4, classLabel: "1" },
+      students: [],
+      subjects: [{ id: "sub", name: "국어", plan: [], standards: [] }],
+      records: [],
+    };
+    const result = parseBackup(JSON.stringify(raw));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.subjects[0]?.units).toEqual([]);
+    expect(result.data.subjects[0]?.elements).toEqual([]);
+    expect(result.data.questions).toEqual([]);
+    expect(JSON.stringify(result.data)).not.toContain("sk-secret");
   });
 
   it("백업 파일이 아니면 거절한다", () => {
     expect(parseBackup("[]").ok).toBe(false);
     expect(parseBackup("{}").ok).toBe(false);
     expect(parseBackup("not json").ok).toBe(false);
-    expect(parseBackup(JSON.stringify({ version: 2, students: [] })).ok).toBe(false);
+    expect(parseBackup(JSON.stringify({ version: 9, students: [] })).ok).toBe(false);
     expect(parseBackup(JSON.stringify({ app: "other", data: {} })).ok).toBe(false);
   });
 

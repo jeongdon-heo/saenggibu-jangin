@@ -1,3 +1,4 @@
+import { emptySubject } from "./defaults";
 import type { AppData, AssessmentItem, ClassInfo, Result, Standard, Student, Subject } from "../types";
 import { createId } from "./id";
 import { LIMITS } from "./limits";
@@ -175,7 +176,7 @@ export function addSubject(data: AppData, name: string): Result<AppData> & { id?
     id,
     data: {
       ...data,
-      subjects: [...data.subjects, { id, name: trimmed, plan: [], standards: [] }],
+      subjects: [...data.subjects, emptySubject(id, trimmed)],
     },
   };
 }
@@ -198,6 +199,7 @@ export function deleteSubject(data: AppData, id: string): AppData {
     ...data,
     subjects: data.subjects.filter((subject) => subject.id !== id),
     records: data.records.filter((record) => record.subjectId !== id),
+    questions: data.questions.filter((question) => question.subjectId !== id),
   };
 }
 

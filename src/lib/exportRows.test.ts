@@ -6,15 +6,17 @@ import { buildXlsxBytes } from "./xlsx";
 import type { AppData } from "../types";
 
 const data: AppData = {
-  version: 1,
+  version: 2,
+  questions: [],
+  aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
   classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
   students: [
     { id: "s2", number: 2, alias: "ㄷㄹ", realName: "홍길동" },
     { id: "s1", number: 1, alias: "ㄱㄴ", realName: "" },
   ],
   subjects: [
-    { id: "kor", name: "국어", plan: [], standards: [] },
-    { id: "math", name: "수학", plan: [], standards: [] },
+    { id: "kor", name: "국어", plan: [], standards: [], units: [], elements: [] },
+    { id: "math", name: "수학", plan: [], standards: [], units: [], elements: [] },
   ],
   records: [
     {

@@ -20,7 +20,7 @@ describe("학급 데이터 수정", () => {
     if (!student) return;
     const withSubject = {
       ...created.data,
-      subjects: [{ id: "sub", name: "수학", plan: [], standards: [] }],
+      subjects: [{ id: "sub", name: "수학", plan: [], standards: [], units: [], elements: [] }],
     };
     const wrote = upsertRecord(withSubject, student.id, "sub", { draft: "문장" });
     const removed = deleteStudent(wrote.data, student.id);
@@ -31,7 +31,7 @@ describe("학급 데이터 수정", () => {
   it("과목을 지우면 그 과목의 기록도 지운다", () => {
     const data = emptyData();
     data.students = [{ id: "s1", number: 1, alias: "ㄱ", realName: "" }];
-    data.subjects = [{ id: "sub", name: "과학", plan: [], standards: [] }];
+    data.subjects = [{ id: "sub", name: "과학", plan: [], standards: [], units: [], elements: [] }];
     const wrote = upsertRecord(data, "s1", "sub", { notes: "관찰" });
     const removed = deleteSubject(wrote.data, "sub");
     expect(removed.subjects).toEqual([]);
@@ -41,7 +41,7 @@ describe("학급 데이터 수정", () => {
   it("같은 학생·과목 문장은 새로 만들지 않고 고친다", () => {
     const data = emptyData();
     data.students = [{ id: "s1", number: 1, alias: "ㄱ", realName: "홍길동" }];
-    data.subjects = [{ id: "sub", name: "국어", plan: [], standards: [] }];
+    data.subjects = [{ id: "sub", name: "국어", plan: [], standards: [], units: [], elements: [] }];
     const first = upsertRecord(data, "s1", "sub", { draft: "처음" });
     const second = upsertRecord(first.data, "s1", "sub", { draft: "고침" });
     expect(second.data.records).toHaveLength(1);
@@ -51,7 +51,7 @@ describe("학급 데이터 수정", () => {
   it("명단을 바꿔도 같은 번호의 기록은 남긴다", () => {
     const data = emptyData();
     data.students = [{ id: "s1", number: 1, alias: "ㄱ", realName: "" }];
-    data.subjects = [{ id: "sub", name: "국어", plan: [], standards: [] }];
+    data.subjects = [{ id: "sub", name: "국어", plan: [], standards: [], units: [], elements: [] }];
     const wrote = upsertRecord(data, "s1", "sub", { draft: "남길 문장" });
     const replaced = applyStudents(wrote.data, [{ number: 1, alias: "ㄴ", realName: "" }], "replace");
     expect(replaced.ok).toBe(true);

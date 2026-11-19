@@ -83,8 +83,9 @@ export function Layout() {
             );
           })}
         </nav>
-        <div className="border-t border-line px-3 py-3">
-          <p className="mb-2 px-1 text-xs text-muted">{savedText}</p>
+        <div className="border-t border-line px-3 py-3" onClick={() => setOpen(false)}>
+          <NavItem to="/settings">AI 설정</NavItem>
+          <p className="mb-2 mt-3 px-1 text-xs text-muted">{savedText}</p>
           <BackupActions compact />
         </div>
       </aside>

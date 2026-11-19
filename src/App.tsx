@@ -5,7 +5,10 @@ import { Layout } from "./components/Layout";
 import { ToastProvider } from "./components/Toast";
 import { ClassPage } from "./pages/ClassPage";
 import { HomePage } from "./pages/HomePage";
+import { QuestionsPage } from "./pages/QuestionsPage";
 import { RecordsPage } from "./pages/RecordsPage";
+import { SelectPage } from "./pages/SelectPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { NotFoundPage, StepPage } from "./pages/StepPage";
 import { SubjectsPage } from "./pages/SubjectsPage";
 
@@ -28,6 +31,9 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/class" element={<ClassPage />} />
               <Route path="/subjects" element={<SubjectsPage />} />
+              <Route path="/questions" element={<QuestionsPage />} />
+              <Route path="/select" element={<SelectPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/records" element={<RecordsPage />} />
               <Route path="/steps/:stepId" element={<StepPage />} />
               <Route path="/home" element={<Navigate to="/" replace />} />

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { clearAiKey, readAiKey, writeAiKey } from "../lib/aiKey";
 import { emptyData } from "../lib/defaults";
 import { savedLabel } from "../lib/format";
 import { getBrowserStorage, loadFrom, saveTo } from "../lib/storage";
@@ -13,6 +14,9 @@ type DataApi = {
   apply: (next: AppData | ((current: AppData) => AppData)) => void;
   replaceAll: (next: AppData) => void;
   startFresh: () => void;
+  aiKey: string;
+  setAiKey: (key: string) => void;
+  persistAiAccess: (remember: boolean, key: string) => void;
 };
 
 const DataContext = createContext<DataApi | null>(null);
@@ -26,6 +30,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [corruptRaw, setCorruptRaw] = useState<string | null>(loaded.rawBackup);
   const [warning, setWarning] = useState<string | null>(loaded.persist ? bundle.warning : null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [aiKey, setAiKeyState] = useState(() => (loaded.data.aiSettings.rememberKey ? readAiKey(bundle.storage) : ""));
   const dataRef = useRef(data);
   const persistRef = useRef(persistAllowed);
 
@@ -71,6 +76,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (result.ok) setSavedAt(new Date().toISOString());
   };
 
+  const persistAiAccess = (remember: boolean, key: string) => {
+    setAiKeyState(key);
+    if (remember && key.trim()) writeAiKey(bundle.storage, key);
+    else clearAiKey(bundle.storage);
+  };
+
   const api: DataApi = {
     data,
     savedText: savedLabel(savedAt),
@@ -80,6 +91,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     apply,
     replaceAll,
     startFresh: () => replaceAll(emptyData()),
+    aiKey,
+    setAiKey: (key: string) => {
+      setAiKeyState(key);
+      if (data.aiSettings.rememberKey) {
+        if (key.trim()) writeAiKey(bundle.storage, key);
+        else clearAiKey(bundle.storage);
+      }
+    },
+    persistAiAccess,
   };
 
   return <DataContext.Provider value={api}>{children}</DataContext.Provider>;

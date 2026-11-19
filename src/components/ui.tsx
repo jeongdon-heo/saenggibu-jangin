@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ComponentProps, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -82,38 +83,39 @@ export function Modal({
   onClose: () => void;
   locked?: boolean;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const onCloseRef = useRef(onClose);
   const titleId = useId();
+  onCloseRef.current = onClose;
 
   useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (!dialog.open) dialog.showModal();
-    const blockEscape = (event: Event) => {
-      if (locked) event.preventDefault();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !locked) onCloseRef.current();
     };
-    dialog.addEventListener("cancel", blockEscape);
-    return () => {
-      dialog.removeEventListener("cancel", blockEscape);
-      if (dialog.open) dialog.close();
-    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [locked]);
 
-  return (
-    <dialog
-      ref={ref}
-      aria-labelledby={titleId}
-      className="w-[min(32rem,calc(100vw-2rem))]"
-      onClose={() => {
-        if (!locked) onClose();
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4"
+      role="presentation"
+      onClick={() => {
+        if (!locked) onCloseRef.current();
       }}
     >
-      <div className="sheet max-h-[min(40rem,calc(100vh-2rem))] overflow-auto p-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="sheet max-h-[min(40rem,calc(100vh-2rem))] w-[min(32rem,calc(100vw-2rem))] overflow-auto p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 id={titleId} className="text-xl font-bold text-ink">
           {title}
         </h2>
         <div className="mt-3 text-base leading-7 text-ink">{children}</div>
       </div>
-    </dialog>
+    </div>,
+    document.body,
   );
 }
