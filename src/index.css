@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-400-normal.woff2") format("woff2");
+  unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-500-normal.woff2") format("woff2");
+  unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-700-normal.woff2") format("woff2");
+  unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF;
+}
+
+@theme {
+  --font-sans: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --color-paper: #f3f0e8;
+  --color-card: #fffdf9;
+  --color-ink: #241c16;
+  --color-muted: #5f564e;
+  --color-line: #e5dcd0;
+  --color-brand: #234e8e;
+  --color-brand-strong: #1b3e72;
+  --color-brand-soft: #e7eef9;
+  --color-stage1: #2a56b0;
+  --color-stage1-soft: #e8f0fc;
+  --color-stage2: #1d7a4e;
+  --color-stage2-soft: #e6f6ee;
+  --color-stage3: #b23b58;
+  --color-stage3-soft: #fdeef2;
+  --color-danger: #9d2f2f;
+  --color-danger-soft: #fdecec;
+  --color-warn: #8a5a22;
+  --color-warn-soft: #fbf4e8;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::selection {
+    background: #d5e3f8;
+  }
+
+  :focus-visible {
+    outline: 3px solid #234e8e;
+    outline-offset: 2px;
+  }
+
+  dialog {
+    margin: auto;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+  }
+
+  dialog::backdrop {
+    background: rgba(36, 28, 22, 0.46);
+  }
+}
+
+@layer components {
+  .sheet {
+    background: var(--color-card);
+    border: 1px solid var(--color-line);
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 30px rgba(70, 48, 24, 0.05);
+  }
+
+  .control {
+    width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid var(--color-line);
+    background: white;
+    padding: 0.65rem 0.8rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .control:focus {
+    border-color: var(--color-brand);
+  }
+
+  textarea.control {
+    resize: vertical;
+    min-height: 6.5rem;
+    line-height: 1.7;
+  }
+}
