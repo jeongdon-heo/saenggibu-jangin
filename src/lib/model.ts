@@ -207,6 +207,8 @@ export function deleteSubject(data: AppData, id: string): AppData {
       }))
       .filter((response) => response.answers.length > 0),
     levelEstimates: data.levelEstimates.filter((estimate) => estimate.subjectId !== id),
+    teacherChecks: data.teacherChecks.filter((check) => check.subjectId !== id),
+    levelDecisions: data.levelDecisions.filter((decision) => decision.subjectId !== id),
   };
 }
 

@@ -19,8 +19,8 @@ export function SelectPage() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         eyebrow="3단계 · 사용 가능"
-        title="과목별 문제 선택"
-        description="확정한 문제 가운데 설문으로 보낼 것을 고릅니다. 고른 문제는 구글 폼 배포 화면에서 미리 볼 수 있습니다."
+        title="설문에 넣을 자기평가 문제"
+        description="확정한 문제 가운데 학생에게 보낼 것을 고릅니다. 교사 평가 표와는 다른 경로입니다."
       />
       <AiReviewNote />
       {data.subjects.length === 0 ? (

@@ -15,6 +15,7 @@ import { SurveyPage } from "./pages/SurveyPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { NotFoundPage, StepPage } from "./pages/StepPage";
 import { SubjectsPage } from "./pages/SubjectsPage";
+import { TeachPage } from "./pages/TeachPage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/class" element={<ClassPage />} />
               <Route path="/subjects" element={<SubjectsPage />} />
+              <Route path="/teach" element={<TeachPage />} />
               <Route path="/questions" element={<QuestionsPage />} />
               <Route path="/select" element={<SelectPage />} />
               <Route path="/forms" element={<FormsPage />} />

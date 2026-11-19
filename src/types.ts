@@ -44,6 +44,29 @@ export type Unit = {
   period: string;
   totalPeriods: string;
   materials: string;
+  skipped: boolean;
+  elementId: string;
+};
+
+export type EvidenceKind = "observe" | "paper" | "performance";
+
+export type TeacherCheck = {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  unitId: string;
+  level: string;
+  evidences: EvidenceKind[];
+  note: string;
+};
+
+export type LevelDecision = {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  elementId: string;
+  level: string;
+  confirmed: boolean;
 };
 
 export type LevelCriterion = {
@@ -147,6 +170,8 @@ export type AppData = {
   questions: Question[];
   responses: SurveyResponse[];
   levelEstimates: LevelEstimate[];
+  teacherChecks: TeacherCheck[];
+  levelDecisions: LevelDecision[];
   aiSettings: AiSettings;
 };
 

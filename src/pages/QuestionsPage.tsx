@@ -143,13 +143,18 @@ export function QuestionsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
-        eyebrow="2단계 · 사용 가능"
-        title="성취수준 파악 문제 만들기"
-        description="고른 평가요소의 학년, 과목, 단원, 성취기준, 수준별 기준만 인공지능에 보냅니다. 학생 번호, 별칭, 실명, 메모, 문장은 보내지 않습니다."
+        eyebrow="3단계 · 사용 가능"
+        title="학생 자기평가 문제"
+        description="학생 설문으로 수준을 가늠하는 문제입니다. 교사 평가와는 별개입니다. 학년, 과목, 단원, 성취기준, 수준별 기준만 인공지능에 보냅니다."
         actions={
-          <Link to="/settings" className="inline-flex h-11 items-center rounded-2xl border border-line bg-card px-4 text-sm font-medium">
-            AI 설정
-          </Link>
+          <>
+            <Link to="/select" className="inline-flex h-11 items-center rounded-2xl bg-brand px-4 text-sm font-medium text-white">
+              설문에 넣을 문제
+            </Link>
+            <Link to="/settings" className="inline-flex h-11 items-center rounded-2xl border border-line bg-card px-4 text-sm font-medium">
+              AI 설정
+            </Link>
+          </>
         }
       />
       <AiReviewNote />

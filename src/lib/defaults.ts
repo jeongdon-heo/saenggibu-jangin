@@ -24,6 +24,8 @@ export function emptyData(): AppData {
     questions: [],
     responses: [],
     levelEstimates: [],
+    teacherChecks: [],
+    levelDecisions: [],
     aiSettings: defaultAiSettings(),
   };
 }
@@ -89,6 +91,24 @@ export function createDemoData(current?: ClassInfo): AppData {
             period: "3",
             totalPeriods: "4",
             materials: "",
+            skipped: false,
+            elementId,
+          },
+          {
+            id: createId(),
+            order: 2,
+            grade: 4,
+            semester: 2,
+            organization: "국어",
+            title: "◈공개수업",
+            content: "공개수업",
+            pages: "",
+            extraPages: "",
+            period: "",
+            totalPeriods: "",
+            materials: "",
+            skipped: true,
+            elementId: "",
           },
         ],
         elements: [
@@ -154,6 +174,18 @@ export function createDemoData(current?: ClassInfo): AppData {
         note: "",
       },
     ],
+    teacherChecks: [
+      {
+        id: createId(),
+        studentId: first.id,
+        subjectId,
+        unitId,
+        level: "잘함",
+        evidences: ["observe", "performance"],
+        note: "모둠에서 모르는 낱말을 스스로 찾아 봄",
+      },
+    ],
+    levelDecisions: [],
     aiSettings: defaultAiSettings(),
     records: [
       {

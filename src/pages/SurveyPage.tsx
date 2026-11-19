@@ -4,7 +4,9 @@ import { Button, cx, PageHeader } from "../components/ui";
 import { useAppData } from "../context/DataContext";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { questionTypeLabel } from "../lib/questionTypes";
+import { sortedStudents } from "../lib/model";
 import { effectiveScore, importSurveyCsv, setAnswerMark, setLevelChoice, shownLevel } from "../lib/survey";
+import { combinedFor, EVIDENCE_LABEL, setLevelDecision } from "../lib/teacherAssess";
 import type { ScoreMark, SurveyAnswer, SurveyResponse } from "../types";
 
 const SCORE_LABEL: Record<ScoreMark, string> = {
@@ -42,8 +44,8 @@ export function SurveyPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         eyebrow="5단계 · 사용 가능"
-        title="학생 설문과 응답 살펴보기"
-        description="구글 시트에서 받은 CSV를 이 브라우저에서만 읽습니다. 번호로 명단과 연결하고, 객관식은 자동으로 채점합니다."
+        title="두 방향 수준 맞추기"
+        description="학생 설문 CSV를 번호로 연결해 채점하고, 아래에서 교사 평가와 나란히 보아 수준을 확정합니다."
         actions={
           <label className="inline-flex h-11 cursor-pointer items-center rounded-2xl bg-brand px-4 text-sm font-medium text-white">
             CSV 불러오기
@@ -98,7 +100,81 @@ export function SurveyPage() {
           ) : null}
         </div>
       )}
+      <CombinePanel />
     </div>
+  );
+}
+
+function CombinePanel() {
+  const { data, apply } = useAppData();
+  const students = sortedStudents(data.students);
+  if (data.subjects.length === 0 || students.length === 0) return null;
+  return (
+    <section className="mt-8">
+      <h2 className="text-lg font-bold">교사 평가와 학생 설문</h2>
+      <p className="mt-1 text-sm leading-6 text-muted">
+        제안 수준은 교사 평가가 있으면 그것을 따릅니다. 두 수준이 다르면 표시만 하고, 확정은 선생님이 고릅니다. 확정한 수준이 평어에 들어갑니다.
+      </p>
+      {data.subjects.map((subject) => (
+        <div key={subject.id} className="mt-4">
+          <h3 className="font-medium">{subject.name}</h3>
+          {subject.elements.length === 0 ? <p className="mt-2 text-sm text-muted">평가요소가 없습니다.</p> : null}
+          {subject.elements.map((element) => (
+            <div key={element.id} className="sheet mt-2 overflow-x-auto p-3">
+              <p className="font-medium">{element.name}</p>
+              <table className="mt-2 w-full min-w-[36rem] text-sm">
+                <thead>
+                  <tr className="text-left text-muted">
+                    <th className="py-1 pr-2 font-medium">번호</th>
+                    <th className="py-1 pr-2 font-medium">교사 평가</th>
+                    <th className="py-1 pr-2 font-medium">학생 설문</th>
+                    <th className="py-1 pr-2 font-medium">제안</th>
+                    <th className="py-1 font-medium">확정</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((student) => {
+                    const row = combinedFor(data, subject.id, student.id).find((item) => item.elementId === element.id);
+                    if (!row) return null;
+                    return (
+                      <tr key={student.id} className={row.disagree ? "bg-warn-soft" : undefined}>
+                        <td className="py-1 pr-2">{student.number} {student.alias || ""}</td>
+                        <td className="py-1 pr-2">
+                          {row.teacherLevel || "없음"}
+                          {row.teacherMixed ? " · 주제마다 다름" : ""}
+                          {row.evidences.length > 0 ? <span className="block text-xs text-muted">{row.evidences.map((kind) => EVIDENCE_LABEL[kind]).join("·")}</span> : null}
+                        </td>
+                        <td className="py-1 pr-2">{row.surveyLevel || "없음"}</td>
+                        <td className="py-1 pr-2">
+                          {row.suggested || "없음"}
+                          {row.disagree ? <span className="block text-xs text-warn">불일치</span> : null}
+                        </td>
+                        <td className="py-1">
+                          <select
+                            className="control h-9"
+                            aria-label={`${student.number}번 ${element.name} 확정 수준`}
+                            value={row.confirmed}
+                            onChange={(event) => {
+                              const level = event.target.value;
+                              apply(setLevelDecision(data, student.id, subject.id, element.id, level, Boolean(level)));
+                            }}
+                          >
+                            <option value="">{row.suggested ? `제안 ${row.suggested}` : "아직 없음"}</option>
+                            {row.labels.map((label) => (
+                              <option key={label} value={label}>{label}</option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -152,7 +228,7 @@ function ResponseDetail({
       {estimates.length > 0 ? (
         <section className="sheet p-4">
           <h3 className="font-bold">평가요소별 추정 수준</h3>
-          <p className="mt-1 text-sm leading-6 text-muted">나중에 평어를 쓸 때 근거로 봅니다. 학생 답 문장은 평어 칸으로 복사되지 않습니다.</p>
+          <p className="mt-1 text-sm leading-6 text-muted">학생 설문 채점을 보정합니다. 교사 평가와 합친 확정은 아래 표에서 합니다.</p>
           <ul className="mt-3 space-y-3">
             {estimates.map((estimate) => {
               const subject = data.subjects.find((item) => item.id === estimate.subjectId);

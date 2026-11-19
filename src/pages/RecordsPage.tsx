@@ -11,7 +11,8 @@ import { copyText } from "../lib/copyText";
 import { checkComment, findNearDuplicates } from "../lib/commentCheck";
 import { CommentActions } from "../components/CommentActions";
 import { findRecord, sortedStudents, upsertRecord } from "../lib/model";
-import { shownLevel } from "../lib/survey";
+import { evidenceLabel, markDraft } from "../lib/evidence";
+import { combinedFor, EVIDENCE_LABEL, levelForComment } from "../lib/teacherAssess";
 import type { Student, Subject } from "../types";
 
 export function RecordsPage() {
@@ -35,7 +36,7 @@ export function RecordsPage() {
         <PageHeader
           eyebrow="6단계 · 사용 가능"
           title="평어 작성"
-          description="추정 수준과 선생님 메모로 성취수준 및 특기사항 초안을 만듭니다. 학생 답은 넣지 않습니다."
+          description="교사 평가와 학생 설문에서 확정한 수준, 선생님 메모로 초안을 만듭니다. 학생 답은 넣지 않습니다."
         />
         <div className="sheet px-5 py-8 text-sm leading-7 text-muted">
           {students.length === 0 ? <p>학생 명단이 없습니다.</p> : null}
@@ -68,7 +69,7 @@ export function RecordsPage() {
       <PageHeader
         eyebrow="6단계 · 사용 가능"
         title="평어 작성"
-        description="추정 수준과 선생님 메모로 초안을 만듭니다. 확인하고 고친 문장만 나이스 복사와 엑셀에 들어갑니다."
+        description="교사 평가와 학생 설문에서 확정한 수준, 선생님 메모로 초안을 만듭니다. 학생 답은 넣지 않습니다."
         actions={
           <Link to="/neis" className="inline-flex h-11 items-center rounded-2xl border border-line bg-card px-4 text-sm font-medium">
             확인한 문장 내보내기
@@ -200,12 +201,8 @@ function StudentCard({
   const confirmed = record?.draftConfirmed ?? false;
   const answers = data.responses.filter((response) => response.studentId === student.id).flatMap((response) => response.answers.map((answer) => answer.raw));
   const flags = checkComment(draft, { answers, standardTexts: subject.standards.map((standard) => standard.text) });
-  const levels = subject.elements
-    .map((element) => {
-      const estimate = data.levelEstimates.find((item) => item.studentId === student.id && item.elementId === element.id);
-      return estimate ? `${element.name} ${shownLevel(estimate) || "수준 없음"}` : "";
-    })
-    .filter(Boolean);
+  const levels = combinedFor(data, subject.id, student.id).filter((row) => row.teacherLevel || row.surveyLevel || row.confirmed);
+  const marks = markDraft(data, student.id, subject.id, draft);
 
   async function copyDraft() {
     if (!confirmed) return;
@@ -252,7 +249,34 @@ function StudentCard({
             <span className="mb-2 block text-sm leading-6 text-muted">나이스에 옮겨 적을 문장입니다.</span>
             <textarea className="control" rows={6} value={draft} onChange={(event) => write({ draft: event.target.value })} />
           </label>
-          {levels.length > 0 ? <p className="text-sm text-muted">근거: {levels.join(" · ")}. 학생 답은 보여 주지 않습니다.</p> : null}
+          {levels.length > 0 ? (
+            <ul className="space-y-1 text-sm leading-6 text-muted">
+              {levels.map((row) => (
+                <li key={row.elementId}>
+                  {row.elementName}: 교사 {row.teacherLevel || "없음"}
+                  {row.evidences.length > 0 ? ` (${row.evidences.map((kind) => EVIDENCE_LABEL[kind]).join("·")})` : ""}
+                  {" · 설문 "}
+                  {row.surveyLevel || "없음"}
+                  {" · 평어 "}
+                  {levelForComment(row) || "없음"}
+                  {row.disagree ? " · 두 평가가 다름" : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {marks.some((mark) => mark.kinds.length > 0 || mark.needsObservation) ? (
+            <ul className="space-y-1 text-sm leading-6">
+              {marks.map((mark) => (
+                <li key={mark.text}>
+                  <span className="text-muted">{mark.text}</span>{" "}
+                  <span className={mark.needsObservation ? "text-warn" : "text-brand"}>
+                    {mark.kinds.length > 0 ? mark.kinds.map((kind) => evidenceLabel(kind)).join("·") : "연결된 근거 문장 없음"}
+                    {mark.needsObservation ? " · 관찰기록 필요" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {similar ? <p className="text-sm leading-6 text-warn">다른 학생 문장과 표현이 비슷합니다. 첫 문장이나 순서를 바꿔 주세요.</p> : null}
           {flags.map((flag) => (
             <p key={flag.message} className="text-sm leading-6 text-warn">

@@ -96,7 +96,7 @@ export function HomePage() {
       <section className="mt-10" aria-labelledby="flow-title">
         <div className="mb-4">
           <h3 id="flow-title" className="text-xl font-bold">작성 흐름</h3>
-          <p className="mt-1 text-sm leading-6 text-muted">여덟 단계 가운데 지금 쓸 수 있는 곳만 먼저 열어둡니다.</p>
+          <p className="mt-1 text-sm leading-6 text-muted">교사 평가와 학생 자기평가를 모아 평어를 씁니다.</p>
         </div>
         {stages.map((stage, index) => {
           const tone = stageStyle[stage.tone];

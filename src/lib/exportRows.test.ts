@@ -10,6 +10,8 @@ const data: AppData = {
   questions: [],
   responses: [],
   levelEstimates: [],
+  teacherChecks: [],
+  levelDecisions: [],
   aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
   classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
   students: [

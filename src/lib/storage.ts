@@ -7,8 +7,11 @@ import type {
   ClassInfo,
   EvaluationElement,
   LevelCriterion,
+  EvidenceKind,
+  LevelDecision,
   LevelEstimate,
   Question,
+  TeacherCheck,
   Result,
   SurveyAnswer,
   SurveyResponse,
@@ -214,6 +217,8 @@ function normalizeUnits(value: unknown): Result<Unit[]> {
       period: asString(item.period, 40, "") ?? "",
       totalPeriods: asString(item.totalPeriods, 40, "") ?? "",
       materials: asString(item.materials, LIMITS.shortField, "") ?? "",
+      skipped: item.skipped === true,
+      elementId: asString(item.elementId, 80, "") ?? "",
     });
   }
   return { ok: true, data: units };
@@ -369,6 +374,10 @@ export function normalizeAppData(value: unknown): Result<AppData> {
   if (!responses.ok) return responses;
   const levelEstimates = normalizeEstimates(value.levelEstimates, students.data, subjects.data);
   if (!levelEstimates.ok) return levelEstimates;
+  const teacherChecks = normalizeChecks(value.teacherChecks, students.data, subjects.data);
+  if (!teacherChecks.ok) return teacherChecks;
+  const levelDecisions = normalizeDecisions(value.levelDecisions, students.data, subjects.data);
+  if (!levelDecisions.ok) return levelDecisions;
   return {
     ok: true,
     data: {
@@ -380,6 +389,8 @@ export function normalizeAppData(value: unknown): Result<AppData> {
       questions: questions.data,
       responses: responses.data,
       levelEstimates: levelEstimates.data,
+      teacherChecks: teacherChecks.data,
+      levelDecisions: levelDecisions.data,
       aiSettings: normalizeAiSettings(value.aiSettings),
     },
   };
@@ -459,6 +470,67 @@ function normalizeEstimates(value: unknown, students: Student[], subjects: Subje
     });
   }
   return { ok: true, data: estimates };
+}
+
+function asEvidence(value: unknown): EvidenceKind[] {
+  if (!Array.isArray(value)) return [];
+  const kinds: EvidenceKind[] = [];
+  for (const item of value) {
+    if ((item === "observe" || item === "paper" || item === "performance") && !kinds.includes(item)) kinds.push(item);
+  }
+  return kinds;
+}
+
+function normalizeChecks(value: unknown, students: Student[], subjects: Subject[]): Result<TeacherCheck[]> {
+  if (value === undefined) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "교사 평가 형식이 올바르지 않습니다." };
+  const studentIds = new Set(students.map((student) => student.id));
+  const unitIds = new Map(subjects.flatMap((subject) => subject.units.map((unit) => [unit.id, subject.id] as const)));
+  const checks: TeacherCheck[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "교사 평가 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const studentId = asString(item.studentId, 80);
+    const unitId = asString(item.unitId, 80);
+    const subjectId = unitId ? unitIds.get(unitId) : undefined;
+    if (!id || !studentId || !unitId || !subjectId || !studentIds.has(studentId)) continue;
+    checks.push({
+      id,
+      studentId,
+      subjectId,
+      unitId,
+      level: (asString(item.level, 20, "") ?? "").slice(0, 20),
+      evidences: asEvidence(item.evidences),
+      note: (asString(item.note, 200, "") ?? "").slice(0, 80),
+    });
+  }
+  return { ok: true, data: checks };
+}
+
+function normalizeDecisions(value: unknown, students: Student[], subjects: Subject[]): Result<LevelDecision[]> {
+  if (value === undefined) return { ok: true, data: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "확정 수준 형식이 올바르지 않습니다." };
+  const studentIds = new Set(students.map((student) => student.id));
+  const subjectIds = new Set(subjects.map((subject) => subject.id));
+  const decisions: LevelDecision[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "확정 수준 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const studentId = asString(item.studentId, 80);
+    const subjectId = asString(item.subjectId, 80);
+    const elementId = asString(item.elementId, 80, "") ?? "";
+    if (!id || !studentId || !subjectId || !studentIds.has(studentId) || !subjectIds.has(subjectId)) continue;
+    if (item.confirmed !== true) continue;
+    decisions.push({
+      id,
+      studentId,
+      subjectId,
+      elementId,
+      level: (asString(item.level, 20, "") ?? "").slice(0, 20),
+      confirmed: true,
+    });
+  }
+  return { ok: true, data: decisions };
 }
 
 export function serializeBackup(data: AppData, exportedAt = new Date().toISOString()): string {

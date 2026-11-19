@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useAppData } from "../context/DataContext";
-import { addUnits, deleteUnit } from "../lib/curriculum";
+import { addUnits, applySkipSuggestions, deleteUnit, updateUnit } from "../lib/curriculum";
+import { suggestSkip } from "../lib/topics";
+import { orderedTopics } from "../lib/teacherAssess";
 import { parseProgressTable, type ParsedUnit } from "../lib/progressSheet";
 import { readXlsxTable } from "../lib/xlsxRead";
 import type { Subject } from "../types";
@@ -88,23 +90,56 @@ export function UnitsSection({ subject }: { subject: Subject }) {
 
   return (
     <section className="sheet p-5">
-      <h2 className="text-lg font-bold">단원</h2>
-      <p className="mt-1 text-sm leading-6 text-muted">
-        나이스 진도표 xlsx를 불러오면 단원 목록이 생깁니다. 열 이름은 순번, 학년, 학기, 편제, 단원, 학습내용, 쪽수, 보조쪽수, 해당차시, 전체차시, 준비물입니다.
-      </p>
-      {subject.units.length === 0 ? <p className="mt-3 text-sm text-muted">아직 단원이 없습니다.</p> : null}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold">학습주제</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            나이스 진도표의 순번대로 나열합니다. 평가요소와 성취기준을 연결하고, 공개수업·학기말 총정리처럼 수업이 아닌 행은 건너뜁니다.
+          </p>
+        </div>
+        <Button variant="secondary" size="sm" disabled={subject.units.length === 0} onClick={() => apply(applySkipSuggestions(data, subject.id))}>
+          수업이 아닌 행 건너뛰기
+        </Button>
+      </div>
+      {subject.units.length === 0 ? <p className="mt-3 text-sm text-muted">아직 학습주제가 없습니다. 진도표를 불러오세요.</p> : null}
       <ul className="mt-3 space-y-2">
-        {subject.units.map((unit) => (
-          <li key={unit.id} className="flex items-start justify-between gap-3 rounded-2xl border border-line px-3 py-2 text-sm">
-            <span>
-              <span className="font-medium">{unit.title}</span>
-              {unit.content ? <span className="mt-0.5 block text-muted">{unit.content}</span> : null}
-            </span>
-            <button type="button" className="shrink-0 text-danger" onClick={() => apply(deleteUnit(data, subject.id, unit.id))}>
-              삭제
-            </button>
-          </li>
-        ))}
+        {orderedTopics(subject).map((unit) => {
+          const element = subject.elements.find((item) => item.id === unit.elementId);
+          const standards = element?.standardCodes
+            .map((code) => subject.standards.find((standard) => standard.code === code))
+            .filter((standard) => standard !== undefined) ?? [];
+          return (
+            <li key={unit.id} className={`rounded-2xl border border-line px-3 py-3 text-sm ${unit.skipped ? "bg-paper opacity-70" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <span>
+                  <span className="font-medium">{unit.order}. {unit.title}</span>
+                  {unit.content ? <span className="mt-0.5 block text-muted">{unit.content}</span> : null}
+                  {suggestSkip(unit.title, unit.content) ? <span className="mt-1 inline-block rounded-full bg-warn-soft px-2 py-0.5 text-xs text-warn">수업이 아닌 행으로 제안</span> : null}
+                </span>
+                <button type="button" className="shrink-0 text-danger" onClick={() => apply(deleteUnit(data, subject.id, unit.id))}>
+                  삭제
+                </button>
+              </div>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!unit.skipped}
+                    onChange={(event) => apply(updateUnit(data, subject.id, unit.id, { skipped: !event.target.checked }))}
+                  />
+                  수업으로 평가
+                </label>
+                <select className="control h-9 sm:max-w-xs" value={unit.elementId} aria-label={`${unit.title} 평가요소`} onChange={(event) => apply(updateUnit(data, subject.id, unit.id, { elementId: event.target.value }))}>
+                  <option value="">평가요소 연결</option>
+                  {subject.elements.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </div>
+              {standards.length > 0 ? <p className="mt-2 text-muted">{standards.map((standard) => `[${standard.code}] ${standard.text}`).join(" ")}</p> : null}
+            </li>
+          );
+        })}
       </ul>
       <label className="mt-4 inline-flex h-11 cursor-pointer items-center rounded-2xl border border-line bg-white px-4 text-sm font-medium">
         진도표 엑셀 불러오기

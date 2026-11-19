@@ -3,6 +3,7 @@ import { createId } from "./id";
 import { LIMITS } from "./limits";
 import type { ParsedElement } from "./elementsParse";
 import type { ParsedUnit } from "./progressSheet";
+import { suggestSkip } from "./topics";
 import type { ParsedQuestion } from "./questionParse";
 import { buildQuestionPrompt, type PromptContext } from "./prompt";
 
@@ -20,7 +21,12 @@ function mapSubject(data: AppData, subjectId: string, mapper: (subject: AppData[
 export function addUnits(data: AppData, subjectId: string, units: ParsedUnit[], mode: "append" | "replace"): Result<AppData> {
   const subject = subjectOf(data, subjectId);
   if (!subject) return { ok: false, error: "과목을 찾지 못했습니다." };
-  const created: Unit[] = units.map((unit) => ({ ...unit, id: createId() }));
+  const created: Unit[] = units.map((unit) => ({
+    ...unit,
+    id: createId(),
+    skipped: suggestSkip(unit.title, unit.content),
+    elementId: "",
+  }));
   const next = mode === "replace" ? created : [...subject.units, ...created];
   if (next.length > LIMITS.units) return { ok: false, error: `단원은 ${LIMITS.units}개까지 넣을 수 있습니다.` };
   const removed = new Set(mode === "replace" ? subject.units.map((unit) => unit.id) : []);
@@ -37,10 +43,36 @@ export function addUnits(data: AppData, subjectId: string, units: ParsedUnit[], 
 }
 
 export function deleteUnit(data: AppData, subjectId: string, unitId: string): AppData {
+  return {
+    ...mapSubject(data, subjectId, (subject) => ({
+      ...subject,
+      units: subject.units.filter((unit) => unit.id !== unitId),
+      elements: subject.elements.map((element) => (element.unitId === unitId ? { ...element, unitId: "" } : element)),
+    })),
+    teacherChecks: data.teacherChecks.filter((check) => check.unitId !== unitId),
+  };
+}
+
+export function updateUnit(
+  data: AppData,
+  subjectId: string,
+  unitId: string,
+  patch: { skipped?: boolean; elementId?: string },
+): AppData {
   return mapSubject(data, subjectId, (subject) => ({
     ...subject,
-    units: subject.units.filter((unit) => unit.id !== unitId),
-    elements: subject.elements.map((element) => (element.unitId === unitId ? { ...element, unitId: "" } : element)),
+    units: subject.units.map((unit) => (unit.id === unitId ? { ...unit, ...patch } : unit)),
+    elements: subject.elements.map((element) => {
+      if (patch.elementId && element.id === patch.elementId && !element.unitId) return { ...element, unitId };
+      return element;
+    }),
+  }));
+}
+
+export function applySkipSuggestions(data: AppData, subjectId: string): AppData {
+  return mapSubject(data, subjectId, (subject) => ({
+    ...subject,
+    units: subject.units.map((unit) => (suggestSkip(unit.title, unit.content) ? { ...unit, skipped: true } : unit)),
   }));
 }
 
@@ -100,8 +132,10 @@ export function deleteElement(data: AppData, subjectId: string, elementId: strin
     ...mapSubject(data, subjectId, (subject) => ({
       ...subject,
       elements: subject.elements.filter((element) => element.id !== elementId),
+      units: subject.units.map((unit) => (unit.elementId === elementId ? { ...unit, elementId: "" } : unit)),
     })),
     questions: data.questions.map((question) => (question.elementId === elementId ? { ...question, elementId: "" } : question)),
+    levelDecisions: data.levelDecisions.filter((decision) => decision.elementId !== elementId),
   };
 }
 

@@ -50,8 +50,8 @@ export function SubjectsPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         eyebrow="1단계 · 사용 가능"
-        title="평가계획·성취기준"
-        description="과목마다 학교 평가계획과 성취기준을 등록합니다. 직접 입력하거나 붙여넣으면 됩니다. 성취기준 모음은 넣어 두지 않았습니다."
+        title="학습주제·성취기준"
+        description="평가계획과 성취기준을 등록하고, 진도표 순서의 학습주제를 평가요소와 연결합니다. 성취기준 모음은 넣어 두지 않았습니다."
       />
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
         <section>
