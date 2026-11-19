@@ -142,7 +142,18 @@ export function createDemoData(current?: ClassInfo): AppData {
       },
     ],
     responses: [],
-    levelEstimates: [],
+    levelEstimates: [
+      {
+        id: createId(),
+        studentId: first.id,
+        subjectId,
+        elementId,
+        elementName: "(예시) 중심 내용 파악",
+        suggestedLevel: "잘함",
+        teacherLevel: "",
+        note: "",
+      },
+    ],
     aiSettings: defaultAiSettings(),
     records: [
       {
@@ -151,6 +162,9 @@ export function createDemoData(current?: ClassInfo): AppData {
         subjectId,
         notes: "(예시) 모둠에서 모르는 낱말을 스스로 찾아 봄.",
         draft: "(예시) 이야기를 읽고 중심 내용을 친구에게 설명함. 모르는 낱말은 사전에서 찾아 확인함.",
+        observation: "",
+        draftConfirmed: false,
+        observationConfirmed: false,
         updatedAt: new Date().toISOString(),
       },
     ],

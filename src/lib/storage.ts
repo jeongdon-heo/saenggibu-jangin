@@ -324,8 +324,9 @@ function normalizeRecords(value: unknown, students: Student[], subjects: Subject
     const subjectId = asString(item.subjectId, 80);
     const notes = asString(item.notes, LIMITS.writing, "");
     const draft = asString(item.draft, LIMITS.writing, "");
+    const observation = asString(item.observation, LIMITS.writing, "");
     const updatedAt = asString(item.updatedAt, 40, "");
-    if (!id || !studentId || !subjectId || notes === null || draft === null || updatedAt === null) {
+    if (!id || !studentId || !subjectId || notes === null || draft === null || observation === null || updatedAt === null) {
       return { ok: false, error: "기록 형식이 올바르지 않습니다." };
     }
     if (!studentIds.has(studentId) || !subjectIds.has(subjectId)) {
@@ -336,14 +337,24 @@ function normalizeRecords(value: unknown, students: Student[], subjects: Subject
     if (pairs.has(pair)) continue;
     ids.add(id);
     pairs.add(pair);
-    records.push({ id, studentId, subjectId, notes, draft, updatedAt });
+    records.push({
+      id,
+      studentId,
+      subjectId,
+      notes,
+      draft,
+      observation,
+      draftConfirmed: item.draftConfirmed === true,
+      observationConfirmed: item.observationConfirmed === true,
+      updatedAt,
+    });
   }
   return { ok: true, data: records };
 }
 
 export function normalizeAppData(value: unknown): Result<AppData> {
   if (!isRecord(value)) return { ok: false, error: "생기부장인 백업 파일이 아닙니다." };
-  if (value.version !== 1 && value.version !== 2 && value.version !== 3) return { ok: false, error: "이 버전에서 열 수 없는 백업 파일입니다." };
+  if (![1, 2, 3, 4].includes(Number(value.version))) return { ok: false, error: "이 버전에서 열 수 없는 백업 파일입니다." };
   const classInfo = normalizeClass(value.classInfo);
   if (!classInfo.ok) return classInfo;
   const students = normalizeStudents(value.students ?? []);

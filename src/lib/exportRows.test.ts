@@ -27,6 +27,9 @@ const data: AppData = {
       subjectId: "kor",
       notes: "관찰 메모는 빼야 한다",
       draft: "이야기를 읽음.",
+      observation: "",
+      draftConfirmed: true,
+      observationConfirmed: false,
       updatedAt: "2026-11-19T00:00:00.000Z",
     },
   ],
@@ -35,19 +38,12 @@ const data: AppData = {
 describe("엑셀 행", () => {
   it("번호 순으로 과목별 문장과 글자 수, 바이트를 만든다", () => {
     const rows = buildExportRows(data);
-    expect(rows.map((row) => [row.number, row.subject, row.alias])).toEqual([
-      [1, "국어", "ㄱㄴ"],
-      [2, "국어", "ㄷㄹ"],
-      [1, "수학", "ㄱㄴ"],
-      [2, "수학", "ㄷㄹ"],
-    ]);
+    expect(rows.map((row) => [row.number, row.subject, row.alias])).toEqual([[1, "국어", "ㄱㄴ"]]);
     const first = rows[0];
     expect(first?.draft).toBe("이야기를 읽음.");
     expect(first?.chars).toBe(countChars("이야기를 읽음."));
     expect(first?.bytes).toBe(countNeisBytes("이야기를 읽음."));
-    expect(rows[1]?.draft).toBe("");
-    expect(rows[1]?.chars).toBe(0);
-    expect(rows[1]?.bytes).toBe(0);
+    expect(rows).toHaveLength(1);
   });
 
   it("실명과 관찰 메모는 행에 넣지 않는다", () => {

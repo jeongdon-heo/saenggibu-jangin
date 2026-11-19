@@ -378,7 +378,13 @@ export function upsertRecord(
   data: AppData,
   studentId: string,
   subjectId: string,
-  patch: { notes?: string; draft?: string },
+  patch: {
+    notes?: string;
+    draft?: string;
+    observation?: string;
+    draftConfirmed?: boolean;
+    observationConfirmed?: boolean;
+  },
 ): { data: AppData; capped: boolean } {
   let capped = false;
   const clamp = (value: string) => {
@@ -396,15 +402,29 @@ export function upsertRecord(
       subjectId,
       notes: clamp(patch.notes ?? ""),
       draft: clamp(patch.draft ?? ""),
+      observation: clamp(patch.observation ?? ""),
+      draftConfirmed: patch.draftConfirmed ?? false,
+      observationConfirmed: patch.observationConfirmed ?? false,
       updatedAt: now,
     });
   } else {
     const current = records[index];
     if (!current) return { data, capped };
+    const draft = patch.draft !== undefined ? clamp(patch.draft) : current.draft;
+    const observation = patch.observation !== undefined ? clamp(patch.observation) : current.observation;
     records[index] = {
       ...current,
       notes: patch.notes !== undefined ? clamp(patch.notes) : current.notes,
-      draft: patch.draft !== undefined ? clamp(patch.draft) : current.draft,
+      draft,
+      observation,
+      draftConfirmed:
+        patch.draftConfirmed !== undefined ? patch.draftConfirmed : patch.draft !== undefined && draft !== current.draft ? false : current.draftConfirmed,
+      observationConfirmed:
+        patch.observationConfirmed !== undefined
+          ? patch.observationConfirmed
+          : patch.observation !== undefined && observation !== current.observation
+            ? false
+            : current.observationConfirmed,
       updatedAt: now,
     };
   }

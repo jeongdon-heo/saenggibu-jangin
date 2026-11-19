@@ -6,6 +6,8 @@ import { ToastProvider } from "./components/Toast";
 import { ClassPage } from "./pages/ClassPage";
 import { FormsPage } from "./pages/FormsPage";
 import { HomePage } from "./pages/HomePage";
+import { NeisPage } from "./pages/NeisPage";
+import { ObservePage } from "./pages/ObservePage";
 import { QuestionsPage } from "./pages/QuestionsPage";
 import { RecordsPage } from "./pages/RecordsPage";
 import { SelectPage } from "./pages/SelectPage";
@@ -39,6 +41,8 @@ export default function App() {
               <Route path="/survey" element={<SurveyPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/records" element={<RecordsPage />} />
+              <Route path="/observe" element={<ObservePage />} />
+              <Route path="/neis" element={<NeisPage />} />
               <Route path="/steps/:stepId" element={<StepPage />} />
               <Route path="/home" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFoundPage />} />

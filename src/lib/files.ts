@@ -1,18 +1,18 @@
 import { downloadBytes, downloadTextFile } from "./download";
-import { buildExportRows } from "./exportRows";
+import { buildExportTable, type ExportLayout } from "./exportRows";
 import { backupFilename, xlsxFilename } from "./format";
 import { serializeBackup } from "./storage";
-import { buildXlsxBytes } from "./xlsx";
+import { buildXlsxTable } from "./xlsx";
 import type { AppData } from "../types";
 
 export function saveBackupFile(data: AppData) {
   downloadTextFile(backupFilename(data.classInfo), serializeBackup(data));
 }
 
-export function saveXlsxFile(data: AppData) {
+export function saveXlsxFile(data: AppData, layout: ExportLayout = "rows") {
   downloadBytes(
     xlsxFilename(data.classInfo),
-    buildXlsxBytes(buildExportRows(data)),
+    buildXlsxTable(buildExportTable(data, layout)),
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   );
 }

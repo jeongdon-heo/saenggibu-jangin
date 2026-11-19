@@ -18,6 +18,9 @@ function classData(): AppData {
       subjectId: "sub",
       notes: "모둠에서 낱말을 찾아 봄",
       draft: "이야기를 읽고 중심 내용을 설명함",
+      observation: "",
+      draftConfirmed: false,
+      observationConfirmed: false,
       updatedAt: "",
     },
   ];
@@ -77,6 +80,23 @@ describe("보내기 전 검사", () => {
     expect(result.error).toContain("홍길동");
     expect(result.error).toContain("ㄱㄴ");
     expect(result.error).toContain("1번");
+  });
+
+  it("학생 답안이 들어가면 막고 선생님 메모만 있으면 통과한다", () => {
+    const data = classData();
+    data.responses = [
+      {
+        id: "resp",
+        studentId: "s1",
+        numberText: "1",
+        submittedAt: "",
+        answers: [{ questionId: "q1", raw: "주인공이 집을 찾아요", autoScore: "unscored", teacherScore: "", note: "" }],
+      },
+    ];
+    expect(guardPrompt("모둠에서 낱말을 찾아 봄", data).ok).toBe(true);
+    const blocked = guardPrompt("학생은 주인공이 집을 찾아요 라고 씀", data);
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.error).toContain("답안");
   });
 
   it("11번 안의 1번으로 오인하지 않고 4학년은 번호가 아니다", () => {

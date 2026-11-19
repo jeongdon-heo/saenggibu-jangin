@@ -103,6 +103,9 @@ export type StudentRecord = {
   subjectId: string;
   notes: string;
   draft: string;
+  observation: string;
+  draftConfirmed: boolean;
+  observationConfirmed: boolean;
   updatedAt: string;
 };
 
