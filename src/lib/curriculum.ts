@@ -84,26 +84,124 @@ function levelsFrom(items: Array<{ label: string; description: string }>): Level
   }));
 }
 
+function elementNameKey(name: string): string {
+  return name.replace(/\s+/g, "").trim();
+}
+
+function unitForTitle(subject: { units: Unit[] }, title: string): string {
+  const trimmed = title.trim();
+  if (!trimmed) return "";
+  const unit = subject.units.find((candidate) => candidate.title === trimmed || candidate.title.includes(trimmed));
+  return unit?.id ?? "";
+}
+
+function noteWithUnit(note: string, unitTitle: string, unitId: string): string {
+  const title = unitTitle.trim();
+  const body = note.trim();
+  if (!title || unitId) return body.slice(0, LIMITS.standardText);
+  const prefix = `단원: ${title}`;
+  if (body.includes(prefix)) return body.slice(0, LIMITS.standardText);
+  return [prefix, body].filter(Boolean).join(" ").slice(0, LIMITS.standardText);
+}
+
 export function addElements(data: AppData, subjectId: string, items: ParsedElement[]): Result<AppData> & { added: number } {
   const subject = subjectOf(data, subjectId);
   if (!subject) return { ok: false, error: "과목을 찾지 못했습니다.", added: 0 };
   const room = LIMITS.elements - subject.elements.length;
   if (room <= 0) return { ok: false, error: "평가요소를 더 넣을 수 없습니다.", added: 0 };
-  const created: EvaluationElement[] = items.slice(0, room).map((item) => {
-    const unit = subject.units.find((candidate) => candidate.title === item.unitTitle || (item.unitTitle && candidate.title.includes(item.unitTitle)));
-    return {
-      id: createId(),
-      name: item.name.slice(0, LIMITS.shortField),
-      unitId: unit?.id ?? "",
-      standardCodes: item.standardCodes.slice(0, 12),
-      levels: levelsFrom(item.levels),
-      note: item.note.slice(0, LIMITS.standardText),
-    };
-  });
+  const created: EvaluationElement[] = items.slice(0, room).map((item) => ({
+    id: createId(),
+    name: item.name.slice(0, LIMITS.shortField),
+    unitId: unitForTitle(subject, item.unitTitle),
+    standardCodes: item.standardCodes.slice(0, 12),
+    levels: levelsFrom(item.levels),
+    note: item.note.slice(0, LIMITS.standardText),
+  }));
   return {
     ok: true,
     added: created.length,
     data: mapSubject(data, subjectId, (current) => ({ ...current, elements: [...current.elements, ...created] })),
+  };
+}
+
+export function mergeElements(
+  data: AppData,
+  subjectId: string,
+  items: ParsedElement[],
+): Result<AppData> & { added: number; updated: number; skipped: number } {
+  const subject = subjectOf(data, subjectId);
+  if (!subject) return { ok: false, error: "과목을 찾지 못했습니다.", added: 0, updated: 0, skipped: 0 };
+  const elements = subject.elements.map((element) => ({
+    ...element,
+    standardCodes: [...element.standardCodes],
+    levels: element.levels.map((level) => ({ ...level })),
+  }));
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const name = item.name.replace(/\s+/g, " ").trim().slice(0, LIMITS.shortField);
+    if (!name) continue;
+    const found = elements.find((element) => elementNameKey(element.name) === elementNameKey(name));
+    if (!found) {
+      if (elements.length >= LIMITS.elements) {
+        return { ok: false, error: "평가요소를 더 넣을 수 없습니다.", added, updated, skipped };
+      }
+      const unitId = unitForTitle(subject, item.unitTitle);
+      elements.push({
+        id: createId(),
+        name,
+        unitId,
+        standardCodes: [...new Set(item.standardCodes)].slice(0, 12),
+        levels: levelsFrom(item.levels),
+        note: noteWithUnit(item.note, item.unitTitle, unitId),
+      });
+      added += 1;
+      continue;
+    }
+    let changed = false;
+    if (!found.unitId) {
+      const unitId = unitForTitle(subject, item.unitTitle);
+      if (unitId) {
+        found.unitId = unitId;
+        changed = true;
+      }
+    }
+    for (const code of item.standardCodes) {
+      if (!code || found.standardCodes.includes(code) || found.standardCodes.length >= 12) continue;
+      found.standardCodes.push(code);
+      changed = true;
+    }
+    const noted = noteWithUnit(found.note || item.note, found.unitId ? "" : item.unitTitle, found.unitId);
+    if (noted !== found.note) {
+      found.note = noted;
+      changed = true;
+    }
+    for (const level of item.levels) {
+      const label = level.label.trim().slice(0, 20);
+      const description = level.description.trim().slice(0, LIMITS.standardText);
+      if (!label && !description) continue;
+      const existing = found.levels.find((current) => current.label.replace(/\s+/g, "") === label.replace(/\s+/g, ""));
+      if (!existing) {
+        if (found.levels.length >= LIMITS.levels) continue;
+        found.levels.push({ id: createId(), label, description });
+        changed = true;
+        continue;
+      }
+      if (!existing.description && description) {
+        existing.description = description;
+        changed = true;
+      }
+    }
+    if (changed) updated += 1;
+    else skipped += 1;
+  }
+  return {
+    ok: true,
+    added,
+    updated,
+    skipped,
+    data: mapSubject(data, subjectId, (current) => ({ ...current, elements })),
   };
 }
 

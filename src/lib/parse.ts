@@ -74,6 +74,17 @@ export function parseStudentList(text: string): { rows: ParsedStudent[]; errors:
 
 const CODE_PATTERN = /\[?\s*([1-6])\s*([가-힣]{1,8})\s*(\d{2})\s*[-–—]\s*(\d{2})\s*\]?/g;
 
+export function findCodes(text: string): string[] {
+  const source = softenSpaces(text).replace(/［/g, "[").replace(/］/g, "]");
+  CODE_PATTERN.lastIndex = 0;
+  const codes: string[] = [];
+  for (const match of source.matchAll(CODE_PATTERN)) {
+    codes.push(`${match[1]}${match[2]}${match[3]}-${match[4]}`);
+  }
+  CODE_PATTERN.lastIndex = 0;
+  return [...new Set(codes)];
+}
+
 export function canonicalCode(raw: string): string | null {
   const source = softenSpaces(raw).trim().replace(/［/g, "[").replace(/］/g, "]");
   const matched = source.match(/^\[?\s*([1-6])\s*([가-힣]{1,8})\s*(\d{2})\s*[-–—]\s*(\d{2})\s*\]?$/);

@@ -5,6 +5,7 @@ export type AiCompleteInput = {
   model: string;
   apiKey: string;
   prompt: string;
+  system?: string;
 };
 
 export const AI_PROVIDERS: Array<{ id: AiProviderId; label: string; defaultModel: string; models: string[]; keyHint: string }> = [
@@ -47,7 +48,7 @@ async function completeGemini(input: AiCompleteInput): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": input.apiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: { parts: [{ text: input.system ?? SYSTEM }] },
         contents: [{ role: "user", parts: [{ text: input.prompt }] }],
         generationConfig: { temperature: 0.4, responseMimeType: "application/json" },
       }),
@@ -73,7 +74,7 @@ async function completeOpenAI(input: AiCompleteInput): Promise<string> {
         model: input.model,
         temperature: 0.4,
         messages: [
-          { role: "system", content: SYSTEM },
+          { role: "system", content: input.system ?? SYSTEM },
           { role: "user", content: input.prompt },
         ],
       }),

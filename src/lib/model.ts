@@ -262,6 +262,72 @@ export function deletePlanItem(data: AppData, subjectId: string, itemId: string)
   }));
 }
 
+function planIdentity(item: { area: string; content: string; method: string }): string {
+  const fold = (value: string) => value.replace(/\s+/g, " ").trim();
+  return [fold(item.area), fold(item.content), fold(item.method)].join("\u0001");
+}
+
+export function mergePlanItems(
+  data: AppData,
+  subjectId: string,
+  items: ParsedPlanItem[],
+): Result<AppData> & { added: number; updated: number; skipped: number } {
+  const subject = subjectOf(data, subjectId);
+  if (!subject) return { ok: false, error: "과목을 찾지 못했습니다.", added: 0, updated: 0, skipped: 0 };
+  const plan = subject.plan.map((item) => ({ ...item }));
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const area = item.area.replace(/\s+/g, " ").trim().slice(0, LIMITS.shortField);
+    const content = item.content.replace(/\s+/g, " ").trim().slice(0, LIMITS.standardText);
+    const method = item.method.replace(/\s+/g, " ").trim().slice(0, LIMITS.shortField);
+    const ratio = item.ratio.replace(/\s+/g, " ").trim().slice(0, LIMITS.shortField);
+    const note = item.note.replace(/\s+/g, " ").trim().slice(0, LIMITS.standardText);
+    if (!area && !content && !method && !ratio) continue;
+    const key = planIdentity({ area, content, method });
+    const found = area || content || method ? plan.find((current) => planIdentity(current) === key) : undefined;
+    if (found) {
+      let changed = false;
+      if (!found.area && area) {
+        found.area = area;
+        changed = true;
+      }
+      if (!found.content && content) {
+        found.content = content;
+        changed = true;
+      }
+      if (!found.method && method) {
+        found.method = method;
+        changed = true;
+      }
+      if (!found.ratio && ratio) {
+        found.ratio = ratio;
+        changed = true;
+      }
+      if (!found.note && note) {
+        found.note = note;
+        changed = true;
+      }
+      if (changed) updated += 1;
+      else skipped += 1;
+      continue;
+    }
+    if (plan.length >= LIMITS.planItems) {
+      return { ok: false, error: "평가 항목을 더 넣을 수 없습니다.", added, updated, skipped };
+    }
+    plan.push({ id: createId(), area, content, method, ratio, note });
+    added += 1;
+  }
+  return {
+    ok: true,
+    added,
+    updated,
+    skipped,
+    data: mapSubject(data, subjectId, (current) => ({ ...current, plan })),
+  };
+}
+
 export function addPlanItems(data: AppData, subjectId: string, items: ParsedPlanItem[]): Result<AppData> & { added: number } {
   const subject = subjectOf(data, subjectId);
   if (!subject) return { ok: false, error: "과목을 찾지 못했습니다.", added: 0 };
