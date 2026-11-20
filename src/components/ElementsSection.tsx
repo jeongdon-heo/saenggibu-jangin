@@ -112,6 +112,13 @@ function ElementCard({
           </select>
         </Field>
       </div>
+      {element.note ? (
+        <div className="mt-3">
+          <Field label="메모">
+            <input className="control" value={element.note} onChange={(event) => onChange({ note: event.target.value })} />
+          </Field>
+        </div>
+      ) : null}
       <fieldset className="mt-3">
         <legend className="text-sm font-medium">연결된 성취기준</legend>
         {subject.standards.length === 0 ? <p className="mt-1 text-sm text-muted">성취기준을 먼저 등록해 주세요.</p> : null}

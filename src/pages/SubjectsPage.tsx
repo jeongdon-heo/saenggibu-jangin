@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Trash } from "lucide-react";
 import { useState } from "react";
 import { ElementsSection } from "../components/ElementsSection";
+import { PlanImportSection } from "../components/PlanImportSection";
 import { UnitsSection } from "../components/UnitsSection";
 import { Button, cx, Field, Modal, PageHeader } from "../components/ui";
 import { useAppData } from "../context/DataContext";
@@ -51,8 +52,9 @@ export function SubjectsPage() {
       <PageHeader
         eyebrow="1단계 · 사용 가능"
         title="학습주제·성취기준"
-        description="평가계획과 성취기준을 등록하고, 진도표 순서의 학습주제를 평가요소와 연결합니다. 성취기준 모음은 넣어 두지 않았습니다."
+        description="평가계획 HWPX·PDF를 이 브라우저에서 읽어 채우거나, 직접 적습니다. 진도표 순서의 학습주제를 평가요소와 연결합니다. 파일은 서버로 나가지 않습니다."
       />
+      <PlanImportSection currentSubjectId={subject?.id ?? null} onApplied={(id) => id && setSelectedId(id)} />
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
         <section>
           <form
