@@ -3,6 +3,7 @@ import type { ParsedElement } from "./elementsParse";
 import { parseElements } from "./elementsParse";
 import { readHwpxBlocks } from "./hwpxRead";
 import { findCodes, parseStandards, type ParsedPlanItem, type ParsedStandard } from "./parse";
+import { subjectFromCode } from "./subjectCode";
 import type { Result } from "../types";
 
 export type ExtractedSubject = {
@@ -83,6 +84,7 @@ type HeaderMap = {
   note?: number;
   element?: number;
   unit?: number;
+  subject?: number;
   standards?: number;
   standardText?: number;
   level?: number;
@@ -105,6 +107,11 @@ function mapHeader(cells: string[]): HeaderMap | null {
   cells.forEach((cell, index) => {
     const key = compact(cell);
     if (!key) return;
+    if (key === "과목" || key === "교과") {
+      map.subject = index;
+      hits += 1;
+      return;
+    }
     if (/평가요소|요소명/.test(key) || key === "요소") {
       map.element = index;
       hits += 1;
@@ -195,10 +202,22 @@ function singleCell(row: string[]): string | null {
 }
 
 type TablePick = {
+  name: string;
   plan: ParsedPlanItem[];
   standards: ParsedStandard[];
   elements: ParsedElement[];
 };
+
+function rowSubjectName(row: string[], header: HeaderMap, carried: string): string {
+  const labeled = matchSubjectHeading(cellAt(row, header.subject)) ?? "";
+  const coded = findCodes(`${cellAt(row, header.standards)} ${cellAt(row, header.standardText)}`)
+    .map((code) => subjectFromCode(code))
+    .find((name): name is string => Boolean(name));
+  if (labeled && !coded) return labeled;
+  if (coded) return coded;
+  if (labeled) return labeled;
+  return carried;
+}
 
 function standardsFromRow(row: string[], header: HeaderMap): ParsedStandard[] {
   const codeCell = cellAt(row, header.standards);
@@ -212,7 +231,7 @@ function standardsFromRow(row: string[], header: HeaderMap): ParsedStandard[] {
   return codes.map((code) => ({ code, text: textCell }));
 }
 
-function interpretTable(rows: string[][]): TablePick | null {
+function interpretTable(rows: string[][]): TablePick[] | null {
   const cleaned = rows.map((row) => row.map((cell) => cell.replace(/\u00a0/g, " ").trim()));
   let headerIndex = -1;
   let header: HeaderMap | null = null;
@@ -231,13 +250,23 @@ function interpretTable(rows: string[][]): TablePick | null {
     const same = headerRow.every((cell, index) => compact(cell) === compact(row[index] ?? ""));
     return !same;
   });
-  const plan: ParsedPlanItem[] = [];
-  const standards: ParsedStandard[] = [];
-  const elements: ParsedElement[] = [];
+  const groups = new Map<string, TablePick>();
+  let carriedSubject = "";
+  function groupFor(name: string): TablePick {
+    const key = name || "";
+    const found = groups.get(key);
+    if (found) return found;
+    const created: TablePick = { name: key, plan: [], standards: [], elements: [] };
+    groups.set(key, created);
+    return created;
+  }
 
   if (header.kind === "standards") {
-    for (const row of data) standards.push(...standardsFromRow(row, header));
-    return standards.length > 0 ? { plan, standards, elements } : null;
+    for (const row of data) {
+      carriedSubject = rowSubjectName(row, header, carriedSubject);
+      groupFor(carriedSubject).standards.push(...standardsFromRow(row, header));
+    }
+    return groups.size > 0 ? [...groups.values()] : null;
   }
 
   if (header.level !== undefined && header.criterion !== undefined) {
@@ -250,9 +279,11 @@ function interpretTable(rows: string[][]): TablePick | null {
       const codes = findCodes(cellAt(row, header.standards));
       const label = tidy(cellAt(row, header.level));
       const description = tidy(cellAt(row, header.criterion));
+      carriedSubject = rowSubjectName(row, header, carriedSubject);
+      const bucket = groupFor(carriedSubject);
       if (name) {
         current = { name, unitTitle, standardCodes: codes, levels: [], note: tidy(cellAt(row, header.note)) };
-        elements.push(current);
+        bucket.elements.push(current);
       } else if (!current) {
         continue;
       } else {
@@ -262,42 +293,45 @@ function interpretTable(rows: string[][]): TablePick | null {
         }
       }
       if ((label || description) && current) current.levels.push({ label, description });
-      standards.push(...standardsFromRow(row, header));
+      bucket.standards.push(...standardsFromRow(row, header));
     }
-    return elements.length > 0 ? { plan, standards, elements } : null;
+    return groups.size > 0 ? [...groups.values()] : null;
   }
 
   for (const row of data) {
     const only = singleCell(row);
     if (only && matchSubjectHeading(only)) continue;
+    carriedSubject = rowSubjectName(row, header, carriedSubject);
+    const bucket = groupFor(carriedSubject);
     if (header.kind === "plan" || header.kind === "both") {
       const item: ParsedPlanItem = {
         area: tidy(cellAt(row, header.area)),
-        content: tidy(cellAt(row, header.content)),
+        content: tidy(cellAt(row, header.content) || cellAt(row, header.element)),
         method: tidy(cellAt(row, header.method)),
         ratio: tidy(cellAt(row, header.ratio)),
         note: tidy(cellAt(row, header.note)),
       };
-      if (item.area || item.content || item.method || item.ratio) plan.push(item);
+      if (item.area || item.content || item.method || item.ratio) bucket.plan.push(item);
     }
     if (header.kind === "elements" || header.kind === "both") {
       const name = tidy(cellAt(row, header.element) || cellAt(row, header.content));
-      if (!name) continue;
-      const levels = header.levels
-        .map((level) => ({ label: level.label, description: tidy(cellAt(row, level.index)) }))
-        .filter((level) => level.description);
-      elements.push({
-        name,
-        unitTitle: tidy(cellAt(row, header.unit)),
-        standardCodes: findCodes(cellAt(row, header.standards)),
-        levels,
-        note: tidy(cellAt(row, header.note)),
-      });
+      if (name) {
+        const levels = header.levels
+          .map((level) => ({ label: level.label, description: tidy(cellAt(row, level.index)) }))
+          .filter((level) => level.description);
+        bucket.elements.push({
+          name,
+          unitTitle: tidy(cellAt(row, header.unit)),
+          standardCodes: findCodes(cellAt(row, header.standards)),
+          levels,
+          note: tidy(cellAt(row, header.note)),
+        });
+      }
     }
-    standards.push(...standardsFromRow(row, header));
+    bucket.standards.push(...standardsFromRow(row, header));
   }
-  if (plan.length === 0 && standards.length === 0 && elements.length === 0) return null;
-  return { plan, standards, elements };
+  const picks = [...groups.values()].filter((group) => group.plan.length > 0 || group.standards.length > 0 || group.elements.length > 0);
+  return picks.length > 0 ? picks : null;
 }
 
 function dedupePlan(items: ParsedPlanItem[]): ParsedPlanItem[] {
@@ -430,10 +464,16 @@ function splitSubjects(blocks: DocBlock[]): Bucket[] {
   return buckets.filter((bucket) => bucket.blocks.length > 0);
 }
 
-function extractBucket(bucket: Bucket): ExtractedSubject {
-  const plan: ParsedPlanItem[] = [];
-  const standards: ParsedStandard[] = [];
-  const elements: ParsedElement[] = [];
+function extractBucket(bucket: Bucket): ExtractedSubject[] {
+  const named = new Map<string, { plan: ParsedPlanItem[]; standards: ParsedStandard[]; elements: ParsedElement[] }>();
+  const take = (name: string) => {
+    const key = name || bucket.name;
+    const found = named.get(key);
+    if (found) return found;
+    const created = { plan: [] as ParsedPlanItem[], standards: [] as ParsedStandard[], elements: [] as ParsedElement[] };
+    named.set(key, created);
+    return created;
+  };
   const texts: string[] = [];
   let skippedTables = 0;
   for (const block of bucket.blocks) {
@@ -448,24 +488,62 @@ function extractBucket(bucket: Bucket): ExtractedSubject {
       texts.push(block.rows.map((row) => row.join(" ")).join("\n"));
       continue;
     }
-    plan.push(...parsed.plan);
-    standards.push(...parsed.standards);
-    elements.push(...parsed.elements);
+    for (const group of parsed) {
+      const target = take(group.name || bucket.name);
+      target.plan.push(...group.plan);
+      target.standards.push(...group.standards);
+      target.elements.push(...group.elements);
+    }
   }
   const prose = texts.join("\n");
-  standards.push(...parseStandards(prose).items);
+  for (const item of parseStandards(prose).items) take(subjectFromCode(item.code) || bucket.name).standards.push(item);
   if (/평가요소\s*[:：]|잘함\s*[:：]|노력요함\s*[:：]|상\s*[:：]/.test(prose)) {
-    elements.push(...parseElements(prose).items);
+    take(bucket.name).elements.push(...parseElements(prose).items);
   }
-  const subject: ExtractedSubject = {
-    name: bucket.name,
-    plan: dedupePlan(plan),
-    standards: dedupeStandards(standards),
-    elements: dedupeElements(elements),
-    warnings: [],
-  };
-  subject.warnings = warningsFor(subject, skippedTables);
-  return subject;
+  if (named.size === 0) take(bucket.name);
+  return [...named.entries()].map(([name, group]) => {
+    const subject: ExtractedSubject = {
+      name,
+      plan: dedupePlan(group.plan),
+      standards: dedupeStandards(group.standards),
+      elements: dedupeElements(group.elements),
+      warnings: [],
+    };
+    subject.warnings = warningsFor(subject, skippedTables);
+    return subject;
+  });
+}
+
+function mergeExtracted(items: ExtractedSubject[]): ExtractedSubject[] {
+  const merged = new Map<string, ExtractedSubject>();
+  for (const item of items) {
+    const found = merged.get(item.name);
+    if (!found) {
+      merged.set(item.name, {
+        name: item.name,
+        plan: dedupePlan(item.plan),
+        standards: dedupeStandards(item.standards),
+        elements: dedupeElements(item.elements),
+        warnings: [],
+      });
+      continue;
+    }
+    found.plan = dedupePlan([...found.plan, ...item.plan]);
+    found.standards = dedupeStandards([...found.standards, ...item.standards]);
+    found.elements = dedupeElements([...found.elements, ...item.elements]);
+  }
+  return [...merged.values()].map((subject) => {
+    subject.warnings = warningsFor(subject, 0);
+    return subject;
+  });
+}
+
+export function planImportTarget(name: string, subjects: Array<{ id: string; name: string }>): string {
+  const key = name.replace(/\s+/g, "");
+  const found = subjects.find((subject) => subject.name.replace(/\s+/g, "") === key);
+  if (found) return found.id;
+  if (key) return "__create__";
+  return "";
 }
 
 export function interpretPlan(blocks: DocBlock[]): ExtractedPlan {
@@ -475,7 +553,9 @@ export function interpretPlan(blocks: DocBlock[]): ExtractedPlan {
   if (letters.length < 12) {
     warnings.push("글자가 거의 없습니다. 스캔한 그림 PDF는 읽지 못합니다. 한글에서 글자가 포함된 PDF나 HWPX로 저장해 주세요.");
   }
-  const subjects = splitSubjects(blocks).map(extractBucket);
+  const subjects = mergeExtracted(splitSubjects(blocks).flatMap(extractBucket)).filter(
+    (subject) => subject.name || subject.plan.length > 0 || subject.standards.length > 0 || subject.elements.length > 0,
+  );
   if (subjects.length === 0) {
     subjects.push({
       name: "",
@@ -485,7 +565,9 @@ export function interpretPlan(blocks: DocBlock[]): ExtractedPlan {
       warnings: warningsFor({ name: "", plan: [], standards: [], elements: [], warnings: [] }, 0),
     });
   }
-  if (subjects.length > 1) warnings.push("과목이 여러 개로 보입니다. 넣을 과목을 각각 확인해 주세요.");
+  if (subjects.length > 1) warnings.push("과목이 여러 개로 보입니다. 과목마다 나눠 두었습니다. 맞는지 확인하고, 필요하면 넣을 과목을 바꾸세요.");
+  const creating = subjects.filter((subject) => subject.name).map((subject) => subject.name);
+  if (creating.length > 0) warnings.push(`문서에서 찾은 과목: ${creating.join(", ")}. 없는 과목은 넣기를 누르면 새로 만들어집니다.`);
   return { subjects, warnings, plainText };
 }
 

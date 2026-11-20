@@ -1,11 +1,15 @@
 import { zipSync, strToU8 } from "fflate";
 import { describe, expect, it } from "vitest";
 import { emptyData } from "./defaults";
+import grade4Glyphs from "./fixtures/grade4-plan-glyphs.json";
 import { guardPrompt } from "./guard";
 import { addSubject } from "./model";
+import { layoutPlanTable } from "./pdfTable";
+import type { PdfGlyph } from "./pdfRead";
 import { applyPlanSelections } from "./planApply";
-import { HWP_UNSUPPORTED, readPlanFile } from "./planDocument";
+import { HWP_UNSUPPORTED, interpretPlan, planImportTarget, readPlanFile } from "./planDocument";
 import { buildPlanPrompt, parsePlanAiResponse } from "./planPrompt";
+import { subjectFromCode } from "./subjectCode";
 import type { Unit } from "../types";
 
 function escapeXml(value: string): string {
@@ -296,6 +300,73 @@ describe("평가계획 넣기", () => {
     expect(applied.addedPlan).toBe(0);
     expect(applied.addedElements).toBe(1);
     expect(applied.addedStandards).toBe(1);
+  });
+});
+
+describe("과목별 나누기", () => {
+  it("성취기준 코드의 과목 글자로 어느 학년이나 과목을 가른다", () => {
+    expect(subjectFromCode("4국02-01")).toBe("국어");
+    expect(subjectFromCode("[6수01-03]")).toBe("수학");
+    expect(subjectFromCode("4사09-01")).toBe("사회");
+    expect(subjectFromCode("5과02-01")).toBe("과학");
+    expect(subjectFromCode("4도01-01")).toBe("도덕");
+    expect(subjectFromCode("3영01-02")).toBe("영어");
+    expect(subjectFromCode("4음01-01")).toBe("음악");
+    expect(subjectFromCode("2미01-01")).toBe("미술");
+    expect(subjectFromCode("4체01-01")).toBe("체육");
+    expect(subjectFromCode("6실02-01")).toBe("실과");
+  });
+
+  it("등록된 과목이 없어도 이름마다 새 과목으로 잡는다", () => {
+    expect(planImportTarget("국어", [])).toBe("__create__");
+    expect(planImportTarget("수학", [{ id: "m", name: "수학" }])).toBe("m");
+    expect(planImportTarget("", [])).toBe("");
+  });
+
+  it("한 표 안의 과목 칸과 성취기준 코드로 과목마다 나눈다", () => {
+    const plan = interpretPlan([
+      {
+        kind: "table",
+        rows: [
+          ["과목", "단원", "평가요소", "영역", "시기", "평가방법", "성취기준", "상", "중", "하"],
+          ["국어", "1. 읽기", "중심 내용", "읽기", "9월 1주", "관찰", "[4국02-01] 글을 읽고 중심 생각을 파악한다.", "잘 찾는다", "일부를 말한다", "어려워한다"],
+          ["", "", "의견 비교", "읽기", "", "토의", "[4국01-06] 주제에 알맞은 의견을 말한다.", "이유를 말한다", "일부만 말한다", "어려워한다"],
+          ["수학", "1. 분수", "덧셈", "수와 연산", "10월", "지필", "[4수01-01] 세 자리 수를 더한다.", "받아올림이 정확하다", "가끔 실수한다", "계산이 어렵다"],
+        ],
+      },
+    ]);
+    const korean = plan.subjects.find((subject) => subject.name === "국어");
+    const math = plan.subjects.find((subject) => subject.name === "수학");
+    expect(korean?.plan.map((item) => item.content)).toEqual(["중심 내용", "의견 비교"]);
+    expect(korean?.plan[0]?.note).toBe("9월 1주");
+    expect(korean?.plan[0]?.ratio).toBe("");
+    expect(korean?.standards[0]).toMatchObject({ code: "4국02-01", text: "글을 읽고 중심 생각을 파악한다." });
+    expect(korean?.elements[0]?.levels.map((level) => level.label)).toEqual(["상", "중", "하"]);
+    expect(korean?.elements[0]?.unitTitle).toBe("1. 읽기");
+    expect(math?.plan[0]?.content).toBe("덧셈");
+    expect(math?.standards[0]?.code).toBe("4수01-01");
+  });
+
+  it("실제 4학년 평가계획 PDF에서 따온 글자 위치로 국어 첫 행을 읽는다", () => {
+    const glyphs = grade4Glyphs as PdfGlyph[];
+    const table = layoutPlanTable([glyphs]);
+    expect(table).not.toBeNull();
+    const plan = interpretPlan([{ kind: "table", rows: table ?? [] }]);
+    const korean = plan.subjects.find((subject) => subject.name === "국어");
+    expect(korean?.plan[0]).toMatchObject({
+      area: "읽기",
+      method: "토의·토론 평가",
+      ratio: "",
+    });
+    expect(korean?.plan[0]?.content).toContain("책을 읽고");
+    expect(korean?.plan[0]?.content).toContain("글쓴이");
+    expect(korean?.plan[0]?.note).toContain("9월");
+    const standard = korean?.standards.find((item) => item.code === "4국02-04")?.text ?? "";
+    expect(standard).toContain("글에 나타난");
+    expect(standard).toContain("사실과 의견");
+    expect(standard).toContain("비교한다");
+    expect(korean?.elements[0]?.levels.find((level) => level.label === "상")?.description).toContain("올바르게");
+    expect(korean?.elements[0]?.unitTitle).toContain("독서");
   });
 });
 
