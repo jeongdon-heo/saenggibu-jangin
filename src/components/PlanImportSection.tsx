@@ -4,7 +4,7 @@ import { completeAi } from "../lib/ai";
 import { guardPrompt } from "../lib/guard";
 import { createId } from "../lib/id";
 import { applyPlanSelections, planApplyMessage, type PlanSelection } from "../lib/planApply";
-import { readPlanFile, type ExtractedPlan } from "../lib/planDocument";
+import { planImportTarget, readPlanFile, type ExtractedPlan } from "../lib/planDocument";
 import { PLAN_AI_SYSTEM, buildPlanPrompt, parsePlanAiResponse } from "../lib/planPrompt";
 import { findCodes, type ParsedPlanItem, type ParsedStandard } from "../lib/parse";
 import type { ParsedElement } from "../lib/elementsParse";
@@ -28,9 +28,8 @@ function checkedItems<T>(items: T[]): Array<Checked<T>> {
 }
 
 function initialTarget(name: string, subjects: Subject[], currentSubjectId: string | null): string {
-  const found = subjects.find((subject) => subject.name.replace(/\s+/g, "") === name.replace(/\s+/g, ""));
-  if (found) return found.id;
-  if (name) return "__create__";
+  const targeted = planImportTarget(name, subjects);
+  if (targeted) return targeted;
   if (currentSubjectId && subjects.some((subject) => subject.id === currentSubjectId)) return currentSubjectId;
   if (subjects.length === 1) return subjects[0]?.id ?? "";
   return "";
@@ -127,13 +126,14 @@ export function PlanImportSection({
       return;
     }
     apply(result.data);
-    const created = result.data.subjects.find((subject) => !before.has(subject.id));
-    const chosen = selections.find((item) => item.subjectId)?.subjectId ?? created?.id ?? null;
+    const created = result.data.subjects.filter((subject) => !before.has(subject.id));
+    const chosen = selections.find((item) => item.subjectId)?.subjectId ?? created[0]?.id ?? null;
     onApplied?.(chosen);
     setDraft(null);
     setAiOpen(false);
     setError(null);
-    setMessage(planApplyMessage(result));
+    const made = created.map((subject) => subject.name).filter(Boolean);
+    setMessage(`${planApplyMessage(result)}${made.length > 0 ? ` 새 과목: ${made.join(", ")}.` : ""}`);
   }
 
   async function sendToAi() {
@@ -178,7 +178,7 @@ export function PlanImportSection({
     <section className="sheet mb-6 p-5">
       <h2 className="text-lg font-bold">평가계획 문서</h2>
       <p className="mt-1 text-sm leading-6 text-muted">
-        학교 평가계획 HWPX나 PDF를 올리면 이 브라우저 안에서만 읽습니다. 파일은 서버로 나가지 않습니다. 평가계획, 성취기준, 평가요소를 미리 보고 고친 뒤에만 넣습니다.
+        학교 평가계획 HWPX나 PDF를 올리면 이 브라우저 안에서만 읽습니다. 파일은 서버로 나가지 않습니다. 과목마다 나눠 보여 주고, 확인한 뒤에만 각 과목에 넣습니다.
       </p>
       <label className="mt-4 inline-flex h-11 cursor-pointer items-center rounded-2xl border border-line bg-white px-4 text-sm font-medium">
         {reading ? "읽는 중" : "HWPX·PDF 올리기"}
@@ -256,7 +256,19 @@ function Review({
   return (
     <div className="mt-4 rounded-2xl bg-paper p-4">
       <h3 className="text-base font-bold">읽어 온 내용 확인</h3>
-      <p className="mt-1 text-sm leading-6 text-muted">체크를 끄면 그 항목은 넣지 않습니다. 칸은 넣기 전에 고칠 수 있습니다. 이미 있는 성취기준과 평가요소는 겹치면 다시 만들지 않습니다.</p>
+      <p className="mt-1 text-sm leading-6 text-muted">
+        과목별로 나눠 두었습니다. 체크를 끄면 그 항목은 넣지 않습니다. 오른쪽에서 넣을 과목을 바꾸거나 넣지 않기를 고를 수 있습니다. 이미 있는 성취기준과 평가요소는 겹치면 다시 만들지 않습니다.
+      </p>
+      {draft.some((subject) => subject.target === "__create__" && subject.detectedName) ? (
+        <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm leading-6 text-warn">
+          없는 과목은 넣기를 누르면 새로 만듭니다:{" "}
+          {draft
+            .filter((subject) => subject.target === "__create__" && subject.detectedName)
+            .map((subject) => subject.detectedName)
+            .join(", ")}
+          . 등록된 과목이 없어도 과목마다 들어갑니다.
+        </p>
+      ) : null}
       {warnings.length > 0 ? (
         <ul className="mt-3 space-y-1 rounded-2xl bg-warn-soft px-4 py-3 text-sm leading-6 text-warn">
           {warnings.map((warning) => (
@@ -316,7 +328,8 @@ function SubjectReview({
 }) {
   const items = [...subject.plan, ...subject.standards, ...subject.elements];
   const allOn = items.length > 0 && items.every((item) => item.checked);
-  const canCreate = subject.detectedName.length > 0 && !subjects.some((item) => item.name === subject.detectedName);
+  const canCreate =
+    subject.detectedName.length > 0 && !subjects.some((item) => item.name.replace(/\s+/g, "") === subject.detectedName.replace(/\s+/g, ""));
 
   return (
     <section className="rounded-2xl border border-line bg-card p-3">
@@ -380,6 +393,9 @@ function SubjectReview({
             <input className="control" aria-label="반영 비율" value={item.value.ratio} onChange={(event) => patchPlan(item.id, { ratio: event.target.value })} />
             <input className="control" aria-label="평가 내용" value={item.value.content} onChange={(event) => patchPlan(item.id, { content: event.target.value })} />
             <input className="control" aria-label="방법" value={item.value.method} onChange={(event) => patchPlan(item.id, { method: event.target.value })} />
+            {item.value.note ? (
+              <input className="control sm:col-span-2" aria-label="시기" value={item.value.note} onChange={(event) => patchPlan(item.id, { note: event.target.value })} />
+            ) : null}
           </div>
         )}
       />

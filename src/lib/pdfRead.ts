@@ -1,4 +1,5 @@
 import type { DocBlock } from "./documentBlocks";
+import { layoutPlanTable } from "./pdfTable";
 import type { Result } from "../types";
 
 export type PdfGlyph = {
@@ -146,7 +147,7 @@ export async function readPdfBlocks(bytes: Uint8Array): Promise<Result<DocBlock[
   try {
     const pdfjs = await loadPdfjs();
     const document = await pdfjs.getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: false }).promise;
-    const blocks: DocBlock[] = [];
+    const pages: PdfGlyph[][] = [];
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
@@ -158,9 +159,11 @@ export async function readPdfBlocks(bytes: Uint8Array): Promise<Result<DocBlock[
         const height = item.height || Math.abs(item.transform[3] ?? 0) || 12;
         glyphs.push({ text: item.str, x, y, width: item.width ?? 0, height });
       }
-      blocks.push(...glyphsToBlocks(glyphs));
+      pages.push(glyphs);
     }
-    return { ok: true, data: blocks };
+    const table = layoutPlanTable(pages);
+    if (table) return { ok: true, data: [{ kind: "table", rows: table }] };
+    return { ok: true, data: pages.flatMap((glyphs) => glyphsToBlocks(glyphs)) };
   } catch {
     return { ok: false, error: "PDF에서 글자를 읽지 못했습니다. 암호가 걸려 있거나, 글자 대신 그림만 있는 파일일 수 있습니다." };
   }
