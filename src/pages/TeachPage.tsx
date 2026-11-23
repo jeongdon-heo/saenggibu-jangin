@@ -4,7 +4,7 @@ import { cx, PageHeader } from "../components/ui";
 import { useAppData } from "../context/DataContext";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { sortedStudents } from "../lib/model";
-import { bulkSetColumn, EVIDENCE_LABEL, findCheck, lessonTopics, levelLabels, toggleEvidence, upsertTeacherCheck } from "../lib/teacherAssess";
+import { bulkSetColumn, EVIDENCE_LABEL, findCheck, lessonTopics, levelLabels, toggleEvidence, topicStandards, upsertTeacherCheck } from "../lib/teacherAssess";
 import type { EvidenceKind, Student, Unit } from "../types";
 
 const KINDS: EvidenceKind[] = ["observe", "paper", "performance"];
@@ -28,7 +28,8 @@ export function TeachPage() {
 
   function onKey(event: KeyboardEvent) {
     if (!subject || !focus) return;
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+    const target = event.target;
+    if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement || target instanceof HTMLButtonElement) return;
     const row = students.findIndex((student) => student.id === focus.studentId);
     const column = topics.findIndex((topic) => topic.id === focus.unitId);
     if (event.key === "ArrowRight") {
@@ -101,6 +102,7 @@ export function TeachPage() {
                         <th key={topic.id} className="min-w-44 px-2 py-2 text-left align-bottom font-medium">
                           <span className="block">{topic.title}</span>
                           <span className="mt-0.5 block text-xs font-normal text-muted">{subject.elements.find((element) => element.id === topic.elementId)?.name || "평가요소 없음"}</span>
+                          <StandardCodes standards={topicStandards(subject, topic)} />
                           <select
                             className="control mt-2 h-9 text-xs"
                             aria-label={`${topic.title} 열 전체 수준`}
@@ -147,6 +149,41 @@ export function TeachPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+export function StandardCodes({ standards }: { standards: Array<{ code: string; text: string }> }) {
+  const [open, setOpen] = useState<string[]>([]);
+  if (standards.length === 0) return null;
+  return (
+    <div className="mt-1">
+      <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+        {standards.map((standard) => {
+          const expanded = open.includes(standard.code);
+          return (
+            <button
+              key={standard.code}
+              type="button"
+              className="text-[11px] font-normal leading-4 text-brand"
+              aria-expanded={expanded}
+              title={standard.text || undefined}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen((current) => (expanded ? current.filter((code) => code !== standard.code) : [...current, standard.code]));
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              [{standard.code}]
+            </button>
+          );
+        })}
+      </div>
+      {standards.filter((standard) => open.includes(standard.code) && standard.text).map((standard) => (
+        <p key={standard.code} className="mt-0.5 text-[11px] font-normal leading-4 text-muted">
+          {standard.text}
+        </p>
+      ))}
     </div>
   );
 }

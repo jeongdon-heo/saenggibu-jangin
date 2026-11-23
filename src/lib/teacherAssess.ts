@@ -1,6 +1,7 @@
 import type { AppData, EvidenceKind, LevelDecision, Subject, TeacherCheck, Unit } from "../types";
 import { createId } from "./id";
 import { sortedStudents } from "./model";
+import { canonicalCode } from "./parse";
 import { shownLevel } from "./survey";
 
 export const EVIDENCE_LABEL: Record<EvidenceKind, string> = {
@@ -17,6 +18,21 @@ export function lessonTopics(subject: Subject): Unit[] {
 
 export function orderedTopics(subject: Subject): Unit[] {
   return subject.units.slice().sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, "ko"));
+}
+
+export function topicStandards(subject: Subject, unit: Unit): Array<{ code: string; text: string }> {
+  const element = subject.elements.find((item) => item.id === unit.elementId);
+  if (!element) return [];
+  const seen = new Set<string>();
+  const standards: Array<{ code: string; text: string }> = [];
+  for (const raw of element.standardCodes) {
+    const code = canonicalCode(raw);
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    const standard = subject.standards.find((item) => canonicalCode(item.code) === code);
+    standards.push({ code, text: standard?.text.trim() ?? "" });
+  }
+  return standards;
 }
 
 export function levelLabels(subject: Subject, unit: Unit): string[] {
