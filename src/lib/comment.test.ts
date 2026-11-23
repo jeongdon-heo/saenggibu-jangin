@@ -124,12 +124,13 @@ describe("확인한 문장만 내보내기", () => {
       { id: "r3", studentId: "s2", subjectId: "math", notes: "", draft: "수학 문장임.", observation: "", draftConfirmed: true, observationConfirmed: false, updatedAt: "" },
     ];
     expect(buildExportTable(data, "rows")).toEqual([
-      ["번호", "이니셜", "과목", "성취수준 및 특기사항", "글자수", "바이트"],
-      ["1", "ㄱㄴ", "국어", "국어 관찰임.", String(countChars("국어 관찰임.")), String(countNeisBytes("국어 관찰임."))],
-      ["2", "ㄷㄹ", "수학", "수학 문장임.", String(countChars("수학 문장임.")), String(countNeisBytes("수학 문장임."))],
+      ["번호", "이니셜", "과목", "구분", "성취수준 및 특기사항", "글자수", "바이트"],
+      ["1", "ㄱㄴ", "국어", "교과 평어", "국어 문장임.", String(countChars("국어 문장임.")), String(countNeisBytes("국어 문장임."))],
+      ["1", "ㄱㄴ", "국어", "관찰기록", "국어 관찰임.", String(countChars("국어 관찰임.")), String(countNeisBytes("국어 관찰임."))],
+      ["2", "ㄷㄹ", "수학", "교과 평어", "수학 문장임.", String(countChars("수학 문장임.")), String(countNeisBytes("수학 문장임."))],
     ]);
-    expect(buildExportTable(data, "columns")[0]).toEqual(["번호", "이니셜", "국어", "수학"]);
-    expect(buildExportTable(data, "columns")[1]).toEqual(["1", "ㄱㄴ", "국어 관찰임.", ""]);
+    expect(buildExportTable(data, "columns")[0]).toEqual(["번호", "이니셜", "국어", "국어 관찰기록", "수학"]);
+    expect(buildExportTable(data, "columns")[1]).toEqual(["1", "ㄱㄴ", "국어 문장임.", "국어 관찰임.", ""]);
     expect(JSON.stringify(buildExportTable(data, "rows"))).not.toContain("아직 초안임");
   });
 });

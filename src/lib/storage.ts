@@ -570,6 +570,10 @@ export function serializeBackup(data: AppData, exportedAt = new Date().toISOStri
   return JSON.stringify({ app: APP_ID, exportedAt, data }, null, 2);
 }
 
+export function serializeState(data: AppData, exportedAt = new Date().toISOString()): string {
+  return JSON.stringify({ app: APP_ID, exportedAt, data });
+}
+
 export const NOT_A_BACKUP_FILE = "생기부장인 백업 파일이 아니에요. 백업으로 저장한 파일을 골라 주세요.";
 
 export function parseBackup(raw: string): Result<AppData> {
@@ -618,7 +622,7 @@ export async function readBackupFile(file: Blob): Promise<Result<AppData>> {
 
 export function saveTo(storage: StorageLike, data: AppData): SaveResult {
   try {
-    storage.setItem(STORAGE_KEY, serializeBackup(data));
+    storage.setItem(STORAGE_KEY, serializeState(data));
     return { ok: true };
   } catch {
     return { ok: false, error: "이 브라우저에 저장하지 못했습니다. 백업 파일을 받아 두세요." };

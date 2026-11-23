@@ -66,6 +66,7 @@ export function buildXlsxBytes(rows: ExportRow[]): Uint8Array {
         { kind: "n", value: row.number },
         { kind: "s", value: row.alias },
         { kind: "s", value: row.subject },
+        { kind: "s", value: row.kind },
         { kind: "s", value: row.draft, style: "2" },
         { kind: "n", value: row.chars },
         { kind: "n", value: row.bytes },
@@ -88,18 +89,19 @@ export function buildXlsxBytes(rows: ExportRow[]): Uint8Array {
     .join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <dimension ref="A1:F${lastRow}"/>
+  <dimension ref="A1:G${lastRow}"/>
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <cols>
     <col min="1" max="1" width="8" customWidth="1"/>
     <col min="2" max="2" width="14" customWidth="1"/>
     <col min="3" max="3" width="14" customWidth="1"/>
-    <col min="4" max="4" width="64" customWidth="1"/>
-    <col min="5" max="5" width="12" customWidth="1"/>
+    <col min="4" max="4" width="14" customWidth="1"/>
+    <col min="5" max="5" width="64" customWidth="1"/>
     <col min="6" max="6" width="12" customWidth="1"/>
+    <col min="7" max="7" width="12" customWidth="1"/>
   </cols>
   <sheetData><row r="1" ht="22" customHeight="1">${header}</row>${body}</sheetData>
-  <autoFilter ref="A1:F${lastRow}"/>
+  <autoFilter ref="A1:G${lastRow}"/>
 </worksheet>`;
 
   const files: Record<string, Uint8Array> = {

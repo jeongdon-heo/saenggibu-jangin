@@ -55,7 +55,9 @@ export function NeisPage() {
         </p>
       ) : (
         <>
-          <p className="mt-4 text-sm text-muted">확인한 문장 {rows.length}개. 실명과 메모, 확인 전 초안은 빠집니다.</p>
+          <p className="mt-4 text-sm text-muted">
+            교과 평어 {rows.filter((row) => row.kind === "교과 평어").length}개, 관찰기록 {rows.filter((row) => row.kind === "관찰기록").length}개. 실명과 메모, 확인 전 초안은 빠집니다. 관찰기록은 평어와 다른 칸입니다.
+          </p>
           {layout === "columns" ? (
             <div className="mt-3 overflow-x-auto">
               <table className="w-full min-w-[36rem] text-left text-sm">
@@ -75,10 +77,10 @@ export function NeisPage() {
           ) : (
             <ul className="mt-3 space-y-3">
               {rows.map((row) => (
-                <li key={`${row.number}-${row.subject}`} className="sheet p-4">
+                <li key={`${row.number}-${row.subject}-${row.kind}`} className="sheet p-4">
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-medium">
-                      {row.number}번 {row.alias || "별칭 없음"} · {row.subject}
+                      {row.number}번 {row.alias || "별칭 없음"} · {row.subject} · {row.kind}
                     </p>
                     <Button size="sm" variant="secondary" onClick={() => void copyRow(row.draft)}>
                       문장 복사

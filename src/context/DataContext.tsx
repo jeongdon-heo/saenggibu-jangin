@@ -41,9 +41,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!result.ok) setWarning(result.error);
       else {
         setWarning(bundle.warning);
-        setSavedAt(new Date().toISOString());
+        const next = new Date().toISOString();
+        setSavedAt((current) => (savedLabel(current) === savedLabel(next) ? current : next));
       }
-    }, 200);
+    }, 400);
     return () => window.clearTimeout(timer);
   }, [bundle.storage, bundle.warning, data, persistAllowed]);
 

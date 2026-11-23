@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { buildExportRows } from "./exportRows";
+import { appendObservationToDraft, buildExportRows, buildExportTable } from "./exportRows";
 import { countChars, countNeisBytes } from "./textCount";
 import { buildXlsxBytes } from "./xlsx";
 import type { AppData } from "../types";
@@ -43,6 +43,7 @@ describe("엑셀 행", () => {
     expect(rows.map((row) => [row.number, row.subject, row.alias])).toEqual([[1, "국어", "ㄱㄴ"]]);
     const first = rows[0];
     expect(first?.draft).toBe("이야기를 읽음.");
+    expect(first?.kind).toBe("교과 평어");
     expect(first?.chars).toBe(countChars("이야기를 읽음."));
     expect(first?.bytes).toBe(countNeisBytes("이야기를 읽음."));
     expect(rows).toHaveLength(1);
@@ -53,7 +54,37 @@ describe("엑셀 행", () => {
     const packed = JSON.stringify(rows);
     expect(packed).not.toContain("홍길동");
     expect(packed).not.toContain("관찰 메모는 빼야 한다");
-    expect(Object.keys(rows[0] ?? {})).toEqual(["number", "alias", "subject", "draft", "chars", "bytes"]);
+    expect(Object.keys(rows[0] ?? {})).toEqual(["number", "alias", "subject", "kind", "draft", "chars", "bytes"]);
+  });
+
+  it("확인한 관찰기록은 교과 평어를 덮지 않고 따로 내보낸다", () => {
+    const comment = "이야기를 읽고 중심 내용을 파악하여 친구에게 설명함. 모르는 낱말은 사전에서 찾아 확인함.";
+    const observation = "모둠에서 모르는 낱말을 스스로 찾아 봄.";
+    const stored = {
+      ...data,
+      records: [
+        {
+          ...data.records[0]!,
+          draft: comment,
+          observation,
+          draftConfirmed: true,
+          observationConfirmed: true,
+        },
+      ],
+    };
+    const rows = buildExportRows(stored);
+    expect(rows.map((row) => [row.kind, row.draft])).toEqual([
+      ["교과 평어", comment],
+      ["관찰기록", observation],
+    ]);
+    expect(rows[0]?.chars).toBe(countChars(comment));
+    expect(rows[1]?.chars).toBe(countChars(observation));
+    expect(stored.records[0]?.draft).toBe(comment);
+    const table = buildExportTable(stored, "columns");
+    expect(table[0]).toEqual(["번호", "이니셜", "국어", "국어 관찰기록"]);
+    expect(table[1]).toEqual(["1", "ㄱㄴ", comment, observation]);
+    expect(appendObservationToDraft(comment, observation)).toBe(`${comment} ${observation}`);
+    expect(appendObservationToDraft(`${comment} ${observation}`, observation)).toBe(`${comment} ${observation}`);
   });
 
   it("엑셀 파일에 머리글과 문장을 넣고 실명은 넣지 않는다", () => {
