@@ -4,7 +4,7 @@ import { useAppData } from "../context/DataContext";
 import { downloadTextFile } from "../lib/download";
 import { saveBackupFile } from "../lib/files";
 import { classSummary } from "../lib/format";
-import { parseBackup } from "../lib/storage";
+import { readBackupFile } from "../lib/storage";
 import { LIMITS } from "../lib/limits";
 import type { AppData } from "../types";
 import { useToast } from "./Toast";
@@ -29,7 +29,7 @@ export function BackupActions({ compact = false }: { compact?: boolean }) {
       setError("파일이 너무 큽니다.");
       return;
     }
-    const result = parseBackup(await file.text());
+    const result = await readBackupFile(file);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -69,10 +69,12 @@ export function BackupActions({ compact = false }: { compact?: boolean }) {
         <Trash className="size-4" aria-hidden />
         모든 데이터 지우기
       </Button>
+      <p className={cx("text-muted", compact ? "px-1 text-xs leading-5" : "basis-full text-sm leading-6")}>
+        확장자가 없어도 백업 파일이면 불러올 수 있어요.
+      </p>
       <input
         ref={inputRef}
         type="file"
-        accept="application/json,.json"
         className="sr-only"
         onChange={(event) => {
           const file = event.target.files?.[0];
@@ -166,6 +168,7 @@ export function RecoverGate() {
         <Button variant="secondary" onClick={() => inputRef.current?.click()}>
           백업 파일 불러오기
         </Button>
+        <p className="text-sm leading-6 text-muted">확장자가 없어도 백업 파일이면 불러올 수 있어요.</p>
         <Button
           variant="danger"
           onClick={() => {
@@ -178,14 +181,12 @@ export function RecoverGate() {
       <input
         ref={inputRef}
         type="file"
-        accept="application/json,.json"
         className="sr-only"
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
           if (!file) return;
-          void file.text().then((text) => {
-            const result = parseBackup(text);
+          void readBackupFile(file).then((result) => {
             if (!result.ok) {
               setError(result.error);
               return;

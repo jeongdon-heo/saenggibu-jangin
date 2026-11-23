@@ -3,7 +3,9 @@ import { emptyData } from "./defaults";
 import {
   createMemoryStorage,
   loadFrom,
+  NOT_A_BACKUP_FILE,
   parseBackup,
+  readBackupFile,
   saveTo,
   serializeBackup,
   STORAGE_KEY,
@@ -152,6 +154,22 @@ describe("백업 저장과 불러오기", () => {
     expect(loaded.rawBackup).toBe("{broken");
     expect(loaded.warning).toContain("읽지 못했습니다");
     expect(loaded.data.students).toEqual([]);
+  });
+
+  it("확장자나 형식이 달라도 백업 내용이면 받고, 다른 파일은 거절한다", async () => {
+    const data = sample();
+    const accepted = await readBackupFile(new File([serializeBackup(data)], "백업", { type: "application/octet-stream" }));
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) expect(accepted.data.students[0]?.alias).toBe("ㄱㄴ");
+
+    const text = await readBackupFile(new File(["학급 메모"], "memo", { type: "text/plain" }));
+    expect(text).toEqual({ ok: false, error: NOT_A_BACKUP_FILE });
+
+    const otherJson = await readBackupFile(new File([JSON.stringify({ hello: "world" })], "data.json", { type: "application/json" }));
+    expect(otherJson).toEqual({ ok: false, error: NOT_A_BACKUP_FILE });
+
+    const wrongApp = await readBackupFile(new File([JSON.stringify({ app: "other", data: {} })], "other", { type: "" }));
+    expect(wrongApp).toEqual({ ok: false, error: NOT_A_BACKUP_FILE });
   });
 
   it("빈 데이터로 다시 저장하면 학생 명단이 사라진다", () => {

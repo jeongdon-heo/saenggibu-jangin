@@ -537,6 +537,8 @@ export function serializeBackup(data: AppData, exportedAt = new Date().toISOStri
   return JSON.stringify({ app: APP_ID, exportedAt, data }, null, 2);
 }
 
+export const NOT_A_BACKUP_FILE = "생기부장인 백업 파일이 아니에요. 백업으로 저장한 파일을 골라 주세요.";
+
 export function parseBackup(raw: string): Result<AppData> {
   if (raw.length > LIMITS.backupChars) return { ok: false, error: "파일이 너무 큽니다." };
   let parsed: unknown;
@@ -548,6 +550,37 @@ export function parseBackup(raw: string): Result<AppData> {
   if (!isRecord(parsed)) return { ok: false, error: "생기부장인 백업 파일이 아닙니다." };
   const body = parsed.app === APP_ID && "data" in parsed ? parsed.data : parsed;
   return normalizeAppData(body);
+}
+
+function backupBody(parsed: unknown): Record<string, unknown> | null {
+  if (!isRecord(parsed)) return null;
+  if (typeof parsed.app === "string" && parsed.app !== APP_ID) return null;
+  const body = parsed.app === APP_ID && "data" in parsed ? parsed.data : parsed;
+  if (!isRecord(body)) return null;
+  if (![1, 2, 3, 4].includes(Number(body.version)) || !isRecord(body.classInfo)) return null;
+  return body;
+}
+
+export function readBackupText(raw: string): Result<AppData> {
+  if (raw.length > LIMITS.backupChars) return { ok: false, error: "파일이 너무 큽니다." };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: NOT_A_BACKUP_FILE };
+  }
+  const body = backupBody(parsed);
+  if (!body) return { ok: false, error: NOT_A_BACKUP_FILE };
+  return normalizeAppData(body);
+}
+
+export async function readBackupFile(file: Blob): Promise<Result<AppData>> {
+  if (file.size > LIMITS.backupChars) return { ok: false, error: "파일이 너무 큽니다." };
+  try {
+    return readBackupText(await file.text());
+  } catch {
+    return { ok: false, error: NOT_A_BACKUP_FILE };
+  }
 }
 
 export function saveTo(storage: StorageLike, data: AppData): SaveResult {
