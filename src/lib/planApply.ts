@@ -1,4 +1,4 @@
-import { mergeElements } from "./curriculum";
+import { ensureUnitsForTitles, mergeElements } from "./curriculum";
 import type { ParsedElement } from "./elementsParse";
 import { addSubject, mergePlanItems, mergeStandards } from "./model";
 import type { ParsedPlanItem, ParsedStandard } from "./parse";
@@ -71,6 +71,11 @@ export function applyPlanSelections(data: AppData, selections: PlanSelection[]):
       counts.updatedStandards += merged.updated;
     }
     if (selection.elements.length > 0) {
+      next = ensureUnitsForTitles(
+        next,
+        subjectId,
+        selection.elements.map((item) => item.unitTitle),
+      );
       const merged = mergeElements(next, subjectId, selection.elements);
       if (!merged.ok) return { ok: false, error: merged.error, ...counts };
       next = merged.data;

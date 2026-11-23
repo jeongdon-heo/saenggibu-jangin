@@ -1,6 +1,7 @@
 import type { DocBlock } from "./documentBlocks";
 import type { ParsedElement } from "./elementsParse";
 import { parseElements } from "./elementsParse";
+import { cleanUnitTitle } from "./curriculum";
 import { readHwpxBlocks } from "./hwpxRead";
 import { findCodes, parseStandards, type ParsedPlanItem, type ParsedStandard } from "./parse";
 import { subjectFromCode } from "./subjectCode";
@@ -321,7 +322,7 @@ function interpretTable(rows: string[][]): TablePick[] | null {
           .filter((level) => level.description);
         bucket.elements.push({
           name,
-          unitTitle: tidy(cellAt(row, header.unit)),
+          unitTitle: cleanUnitTitle(tidy(cellAt(row, header.unit))),
           standardCodes: findCodes(cellAt(row, header.standards)),
           levels,
           note: tidy(cellAt(row, header.note)),
@@ -546,7 +547,7 @@ export function planImportTarget(name: string, subjects: Array<{ id: string; nam
   return "";
 }
 
-export function interpretPlan(blocks: DocBlock[]): ExtractedPlan {
+export function interpretPlan(blocks: DocBlock[], expectedCounts: Record<string, number> = {}): ExtractedPlan {
   const plainText = blocksToPlain(blocks);
   const letters = plainText.replace(/\s/g, "");
   const warnings: string[] = [];
@@ -568,6 +569,13 @@ export function interpretPlan(blocks: DocBlock[]): ExtractedPlan {
   if (subjects.length > 1) warnings.push("과목이 여러 개로 보입니다. 과목마다 나눠 두었습니다. 맞는지 확인하고, 필요하면 넣을 과목을 바꾸세요.");
   const creating = subjects.filter((subject) => subject.name).map((subject) => subject.name);
   if (creating.length > 0) warnings.push(`문서에서 찾은 과목: ${creating.join(", ")}. 없는 과목은 넣기를 누르면 새로 만들어집니다.`);
+  for (const [name, count] of Object.entries(expectedCounts)) {
+    const subject = subjects.find((item) => item.name === name);
+    const actual = subject?.plan.length ?? 0;
+    if (count > 0 && actual !== count) {
+      warnings.push(`${name} 평가 항목이 ${actual}개인데, 문서 하단에는 ${count}개라고 되어 있습니다. 쪽 경계에서 한 줄이 나뉘었는지 확인해 주세요.`);
+    }
+  }
   return { subjects, warnings, plainText };
 }
 
@@ -581,7 +589,7 @@ export async function readPlanFile(name: string, bytes: Uint8Array): Promise<Res
     const { readPdfBlocks } = await import("./pdfRead");
     const blocks = await readPdfBlocks(bytes);
     if (!blocks.ok) return blocks;
-    return { ok: true, data: interpretPlan(blocks.data) };
+    return { ok: true, data: interpretPlan(blocks.data.blocks, blocks.data.expectedCounts) };
   }
   const blocks = readHwpxBlocks(bytes);
   if (!blocks.ok) return blocks;

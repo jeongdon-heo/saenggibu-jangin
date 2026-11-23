@@ -38,6 +38,26 @@ const HEADER_ROLE: Record<string, Column["role"]> = {
 
 const PARTICLE = /^(을|를|이|가|은|는|과|와|에서|에게|부터|까지|에|로)( |$)/;
 
+function isHangulFragment(token: string): boolean {
+  return /^[가-힣](?:[을를이가은는과와에로의])?$/.test(token);
+}
+
+function polishSpacing(text: string): string {
+  return text
+    .replace(/수있/g, "수 있")
+    .replace(/수없/g, "수 없")
+    .replace(/할수(?= )/g, "할 수")
+    .replace(/된후/g, "된 후")
+    .replace(/([가-힣]) (적으로|적인|하여|르게|으며)/g, "$1$2")
+    .replace(/([가-힣]) 의 (?=[가-힣])/g, "$1의 ")
+    .replace(/([가-힣]) 성(?=[을를이가은는])/g, "$1성")
+    .replace(/([가-힣]) 며(?=[\s가-힣.,]|$)/g, "$1며")
+    .replace(/ ([을를이가은는]) (?=[가-힣])/g, "$1")
+    .replace(/ ([다])(?=[.]|$)/g, "$1")
+    .replace(/ +/g, " ")
+    .trim();
+}
+
 function compact(value: string): string {
   return value.replace(/\s+/g, "");
 }
@@ -67,22 +87,36 @@ function groupLines(glyphs: PdfGlyph[]): PdfGlyph[][] {
   return lines;
 }
 
+function collapseLetterSpacing(text: string): string {
+  const parts = text.split(" ");
+  if (parts.length < 4) return text;
+  const singles = parts.filter((part) => /^[가-힣]$/.test(part)).length;
+  if (singles >= 4 && singles / parts.length >= 0.75) return parts.join("");
+  return text;
+}
+
 function lineInfo(glyphs: PdfGlyph[]): LineInfo | null {
   const items = glyphs.filter((glyph) => glyph.text.trim()).sort((left, right) => left.x - right.x);
   if (items.length === 0) return null;
   let text = "";
   let end = 0;
   let lastToken = "";
+  const size = Math.max(8, ...items.map((item) => item.height || 0));
   for (const item of items) {
-    const token = item.text.trim();
+    const token = collapseLetterSpacing(item.text.trim());
     const gap = text ? item.x - end : 0;
-    if (text && gap > 1.6 && !text.endsWith(" ")) text += " ";
+    if (text && gap > size * 0.45 && !text.endsWith(" ")) text += " ";
     text += token;
-    end = item.x + inkWidth(item);
+    end = item.x + inkWidth({ ...item, text: token });
     lastToken = token;
   }
   const y = items.reduce((sum, item) => sum + item.y, 0) / items.length;
   return { y, text: text.replace(/ +/g, " ").trim(), end, lastToken };
+}
+
+export function sentenceEnded(text: string): boolean {
+  const folded = text.replace(/\s+/g, "");
+  return /(?:다|요|까|죠|니까)\.?$/.test(folded);
 }
 
 function glueLines(lines: LineInfo[], right: number): string {
@@ -95,18 +129,21 @@ function glueLines(lines: LineInfo[], right: number): string {
       previous = line;
       continue;
     }
-    const full = right - previous.end < 18;
-    const cut =
-      /^[가-힣]$/.test(previous.lastToken) ||
-      /[·ㆍ\-–—][가-힣]$/.test(previous.lastToken) ||
-      / [가-힣]$/.test(previous.text);
+    const size = 8;
+    const full = right - previous.end < size * 1.2;
+    const nextFirst = line.text.split(/\s+/)[0] ?? "";
     const particle = PARTICLE.test(line.text);
-    const ended = /[.?!]$/.test(previous.text);
-    const space = ended || !(cut || (full && particle));
+    const nextFragment = isHangulFragment(nextFirst);
+    const cutTail = /^[가-힣]$/.test(previous.lastToken) || /[·ㆍ\-–—][가-힣]$/.test(previous.lastToken) || / [가-힣]$/.test(previous.text);
+    const ended = /[.?!。]$/.test(previous.text) || sentenceEnded(previous.text);
+    const auxiliary = previous.lastToken === "수" && /^[있없]/.test(nextFirst);
+    let space = true;
+    if (ended || auxiliary) space = true;
+    else if (particle || (full && (nextFragment || cutTail))) space = false;
     out += `${space ? " " : ""}${line.text}`;
     previous = line;
   }
-  return out.replace(/ +/g, " ").trim();
+  return polishSpacing(out);
 }
 
 function columnLines(glyphs: PdfGlyph[], column: Column): LineInfo[] {
@@ -196,19 +233,6 @@ function clustersOf(glyphs: PdfGlyph[], gap: number): Array<{ y: number; glyphs:
   return groups.map((group) => ({ y: (group.top + group.bottom) / 2, glyphs: group.glyphs }));
 }
 
-function nearestIndex(y: number, anchors: number[]): number {
-  let best = 0;
-  let distance = Number.POSITIVE_INFINITY;
-  anchors.forEach((anchor, index) => {
-    const gap = Math.abs(anchor - y);
-    if (gap < distance) {
-      distance = gap;
-      best = index;
-    }
-  });
-  return best;
-}
-
 function tightenArea(value: string): string {
   return value
     .replace(/(^|\s)([가-힣])\s+(?=[가-힣](?:\s|·|$))/g, "$1$2")
@@ -217,128 +241,98 @@ function tightenArea(value: string): string {
     .trim();
 }
 
-type PageRows = {
+function isNoise(text: string): boolean {
+  const folded = text.replace(/\s+/g, "");
+  if (!folded) return true;
+  if (folded.includes("▣") || folded.includes("문항수")) return true;
+  if (folded.includes("평가단계")) return true;
+  if (/^<\d학기>/.test(folded)) return true;
+  if (folded === "수행평가" || folded === "수행평가계획") return true;
+  return false;
+}
+
+function elementClosed(text: string): boolean {
+  const folded = text.replace(/\s+/g, "");
+  return /(?:기|다|요|음|까)$/.test(folded);
+}
+
+type LaidPage = {
   rows: string[][];
-  leading: string;
-  trailing: string;
+  overflow: string[];
 };
 
-function layoutPage(glyphs: PdfGlyph[], columns: Column[], bodyTop: number): PageRows {
-  const body = glyphs.filter((glyph) => glyph.text.trim() && glyph.y < bodyTop && glyph.y > 28);
-  const area = columns.find((column) => column.role === "area") ?? columns.find((column) => column.role === "method");
-  const anchorGlyphs = area ? body.filter((glyph) => glyph.x >= area.x0 && glyph.x < area.x1) : [];
-  const anchors = clustersOf(anchorGlyphs, 22).map((cluster) => cluster.y);
-  if (anchors.length === 0) return { rows: [], leading: "", trailing: "" };
-  const standards = columns.find((column) => column.role === "standards");
-  const standardLines = standards ? columnLines(body, standards) : [];
-  const chunks: LineInfo[][] = [];
-  const leadingLines: LineInfo[] = [];
-  let current: LineInfo[] = [];
-  let sawCode = false;
-  for (const line of standardLines) {
-    const coded = findCodes(line.text).length > 0;
-    if (!sawCode && !coded) {
-      leadingLines.push(line);
-      continue;
-    }
-    if (coded && current.length > 0) chunks.push(current);
-    sawCode = true;
-    if (coded) current = [line];
-    else current.push(line);
-  }
-  if (current.length > 0) chunks.push(current);
-  const statements = chunks.map((chunk) => ({
-    y: chunk[0]?.y ?? 0,
-    text: standards ? glueLines(chunk, standards.x1) : "",
-  }));
-  const rowCount = anchors.length;
-  const cells: string[][] = Array.from({ length: rowCount }, () => columns.map(() => ""));
-  const standardIndex = columns.findIndex((column) => column.role === "standards");
-  statements.forEach((statement) => {
-    const row = nearestIndex(statement.y, anchors);
-    const target = cells[row];
-    if (!target || standardIndex < 0) return;
-    target[standardIndex] = [target[standardIndex], statement.text].filter(Boolean).join(" ");
-  });
-  columns.forEach((column, index) => {
-    if (column.role === "standards" || column.role === "subject" || column.role === "unit") return;
-    const lines = columnLines(body, column);
-    const buckets: LineInfo[][] = Array.from({ length: rowCount }, () => []);
-    for (const line of lines) buckets[nearestIndex(line.y, anchors)]?.push(line);
-    buckets.forEach((bucket, row) => {
-      const target = cells[row];
-      if (target) {
-        const text = glueLines(bucket, column.x1);
-        target[index] = column.role === "area" ? tightenArea(text) : text;
+
+function appendText(previous: string, extra: string): string {
+  if (!extra) return previous;
+  if (!previous) return extra;
+  const trimmed = extra.trim();
+  const nextFirst = trimmed.split(/\s+/)[0] ?? "";
+  const lastToken = previous.trim().split(/\s+/).at(-1) ?? "";
+  if (sentenceEnded(previous) || (lastToken === "수" && /^[있없]/.test(trimmed))) return polishSpacing(`${previous} ${trimmed}`);
+  if (PARTICLE.test(trimmed) || isHangulFragment(nextFirst) || / [가-힣]$/.test(previous.trim())) return polishSpacing(`${previous}${trimmed}`);
+  return polishSpacing(`${previous} ${trimmed}`);
+}
+
+function layoutPage(glyphs: PdfGlyph[], columns: Column[], bodyTop: number): LaidPage {
+  const body = glyphs.filter((glyph) => glyph.text.trim() && !isNoise(glyph.text) && glyph.y < bodyTop && glyph.y > 28);
+  const elementColumn = columns.find((column) => column.role === "element");
+  const elementGlyphs = elementColumn ? body.filter((glyph) => glyph.x >= elementColumn.x0 && glyph.x < elementColumn.x1) : [];
+  const clusters = clustersOf(elementGlyphs, 16);
+  const blocks = clusters
+    .map((cluster) => ({
+      top: Math.max(...cluster.glyphs.map((glyph) => glyph.y)),
+      bottom: Math.min(...cluster.glyphs.map((glyph) => glyph.y)),
+    }))
+    .sort((left, right) => right.top - left.top);
+  const starts = blocks.map((block) => block.top);
+  if (starts.length === 0) return { rows: [], overflow: columns.map(() => "") };
+  const columnLineCache = columns.map((column) => columnLines(body, column));
+  for (let index = 0; index < starts.length; index += 1) {
+    let raised = starts[index] ?? 0;
+    const ceiling = index === 0 ? Number.POSITIVE_INFINITY : (blocks[index - 1]?.bottom ?? raised) - 3;
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const lines of columnLineCache) {
+        for (const line of lines) {
+          if (line.y > raised && line.y < ceiling && line.y - raised <= 13 && !sentenceEnded(line.text)) {
+            raised = line.y;
+            grew = true;
+          }
+        }
       }
-    });
-  });
-  const subjectIndex = columns.findIndex((column) => column.role === "subject");
-  const subjects = cells.map((row) => {
-    const coded = findCodes(row[standardIndex] ?? "")
-      .map((code) => subjectFromCode(code))
-      .find((name): name is string => Boolean(name));
-    return coded ?? "";
-  });
-  let carriedSubject = "";
-  subjects.forEach((name, index) => {
-    if (name) carriedSubject = name;
-    else if (carriedSubject) subjects[index] = carriedSubject;
-  });
-  const firstNamed = subjects.findIndex((name) => name);
-  if (firstNamed > 0) {
-    const name = subjects[firstNamed] ?? "";
-    for (let index = 0; index < firstNamed; index += 1) {
-      if (!subjects[index]) subjects[index] = name;
     }
+    starts[index] = raised;
   }
-  if (subjectIndex >= 0) {
-    subjects.forEach((name, index) => {
-      const row = cells[index];
-      if (row) row[subjectIndex] = name;
-    });
+  const rowCount = starts.length;
+  const buckets: LineInfo[][][] = columns.map(() => Array.from({ length: rowCount }, () => []));
+  const overflowLines: LineInfo[][] = columns.map(() => []);
+  const rowStarts = starts;
+  function rowIndex(y: number): number | null {
+    const first = rowStarts[0] ?? 0;
+    if (y > first + 2) return null;
+    for (let index = 0; index < rowStarts.length; index += 1) {
+      const top = rowStarts[index] ?? 0;
+      const bottom = rowStarts[index + 1] ?? Number.NEGATIVE_INFINITY;
+      if (y <= top + 2 && y > bottom + 2) return index;
+    }
+    return rowStarts.length - 1;
   }
-  const unitColumn = columns.find((column) => column.role === "unit");
-  const unitIndex = columns.findIndex((column) => column.role === "unit");
-  const unitClusters = unitColumn
-    ? clustersOf(
-        body.filter((glyph) => glyph.x >= unitColumn.x0 && glyph.x < unitColumn.x1),
-        28,
-      )
-    : [];
-  const unitMarks = unitClusters.map((cluster) => ({
-    y: cluster.y,
-    text: glueLines(
-      columnLines(cluster.glyphs, { label: "단원", role: "unit", x0: Number.NEGATIVE_INFINITY, x1: Number.POSITIVE_INFINITY }),
-      unitColumn?.x1 ?? 0,
-    ),
-  }));
-  if (unitIndex >= 0 && unitMarks.length > 0) {
-    const ordered = [...unitMarks].sort((left, right) => right.y - left.y);
-    const first = ordered[0];
-    const topAnchor = anchors[0] ?? first?.y ?? 0;
-    const startsNearTop = first !== undefined && topAnchor - first.y < 140;
-    cells.forEach((row, index) => {
-      const y = anchors[index] ?? 0;
-      if (!startsNearTop && first && y > first.y) return;
-      let chosen = first;
-      for (let markIndex = 0; markIndex < ordered.length; markIndex += 1) {
-        const mark = ordered[markIndex];
-        const previous = ordered[markIndex - 1];
-        const next = ordered[markIndex + 1];
-        if (!mark) continue;
-        const top = previous ? (previous.y + mark.y) / 2 : Number.POSITIVE_INFINITY;
-        const bottom = next ? (mark.y + next.y) / 2 : Number.NEGATIVE_INFINITY;
-        if (y <= top && y > bottom) chosen = mark;
-      }
-      if (chosen?.text) row[unitIndex] = chosen.text;
-    });
-  }
-  return {
-    rows: cells,
-    leading: glueLines(leadingLines, standards?.x1 ?? 0),
-    trailing: "",
-  };
+  columns.forEach((column, columnIndex) => {
+    for (const line of columnLines(body, column)) {
+      const row = rowIndex(line.y);
+      if (row === null) overflowLines[columnIndex]?.push(line);
+      else buckets[columnIndex]?.[row]?.push(line);
+    }
+  });
+  const rows = Array.from({ length: rowCount }, (_, row) =>
+    columns.map((column, columnIndex) => {
+      const text = glueLines(buckets[columnIndex]?.[row] ?? [], column.x1);
+      return column.role === "area" ? tightenArea(text) : text;
+    }),
+  );
+  const overflow = columns.map((column, columnIndex) => glueLines(overflowLines[columnIndex] ?? [], column.x1));
+  return { rows, overflow };
 }
 
 const OUTPUT = ["과목", "단원", "평가요소", "영역", "시기", "평가방법", "성취기준", "상", "중", "하"] as const;
@@ -351,43 +345,104 @@ function outputIndex(role: Column["role"], label: string): number {
   if (role === "when") return 4;
   if (role === "method") return 5;
   if (role === "standards") return 6;
-  if (role === "level" && label === "상") return 7;
-  if (role === "level" && label === "중") return 8;
-  if (role === "level" && label === "하") return 9;
-  if (role === "level" && label === "잘함") return 7;
-  if (role === "level" && label === "보통") return 8;
-  if (role === "level" && label === "노력요함") return 9;
+  if (role === "level" && (label === "상" || label === "잘함")) return 7;
+  if (role === "level" && (label === "중" || label === "보통")) return 8;
+  if (role === "level" && (label === "하" || label === "노력요함")) return 9;
   return -1;
 }
 
+export function readExpectedCounts(pages: PdfGlyph[][]): Record<string, number> {
+  const footer = pages.flat().map((glyph) => glyph.text).find((text) => text.includes("문항수") || text.includes("▣"));
+  if (!footer) return {};
+  const counts: Record<string, number> = {};
+  for (const match of footer.matchAll(/([가-힣]{1,8})\((\d+)\)/g)) {
+    const name = match[1];
+    const count = Number(match[2]);
+    if (name && Number.isInteger(count)) counts[name] = count;
+  }
+  return counts;
+}
+
+function reclaimLevelTails(rows: string[][]): void {
+  for (let index = 2; index < rows.length; index += 1) {
+    const previous = rows[index - 1];
+    const current = rows[index];
+    if (!previous || !current) continue;
+    for (const slot of [7, 8, 9]) {
+      const before = previous[slot] ?? "";
+      const after = current[slot] ?? "";
+      if (!before || !after || sentenceEnded(before)) continue;
+      const match = after.match(/^(.+?(?:다|요|까)\.)\s+(\S[\s\S]+)$/);
+      const head = match?.[1] ?? "";
+      const rest = match?.[2] ?? "";
+      if (!head || !rest || head.length > 90) continue;
+      previous[slot] = polishSpacing(`${before} ${head}`);
+      current[slot] = rest;
+    }
+  }
+}
+
 export function layoutPlanTable(pages: PdfGlyph[][]): string[][] | null {
-  const flat = pages.flat();
+  const flat = pages.map((page) => page.filter((glyph) => !isNoise(glyph.text))).flat();
   const header = findHeader(flat);
   if (!header) return null;
-  const headerLine = OUTPUT.slice();
-  const rows: string[][] = [headerLine];
+  const rows: string[][] = [OUTPUT.slice()];
   let previousSubject = "";
   let previousUnit = "";
   for (const page of pages) {
     const laid = layoutPage(page, header.columns, pages[0] === page ? header.bodyTop : 820);
-    if (laid.leading) {
-      const last = rows[rows.length - 1];
-      if (last && rows.length > 1) last[6] = [last[6], laid.leading].filter(Boolean).join(" ");
+    const overflow = OUTPUT.map(() => "");
+    header.columns.forEach((column, index) => {
+      const slot = outputIndex(column.role, column.label);
+      if (slot >= 0) overflow[slot] = laid.overflow[index] ?? "";
+    });
+    const last = rows[rows.length - 1];
+    if (last && rows.length > 1 && overflow.some((cell) => cell.trim())) {
+      overflow.forEach((extra, index) => {
+        last[index] = appendText(last[index] ?? "", extra);
+      });
     }
+    const pageRows: string[][] = [];
     for (const row of laid.rows) {
       const output = OUTPUT.map(() => "");
       header.columns.forEach((column, index) => {
         const slot = outputIndex(column.role, column.label);
         if (slot >= 0) output[slot] = row[index] ?? "";
       });
+      if (!output[0]) {
+        const coded = findCodes(output[6] ?? "").map((code) => subjectFromCode(code)).find((name): name is string => Boolean(name));
+        if (coded) output[0] = coded;
+      }
+      if (output.some((cell) => cell.trim())) pageRows.push(output);
+    }
+    const firstUnit = pageRows.findIndex((row) => row[1]?.trim());
+    if (firstUnit > 0) {
+      const title = pageRows[firstUnit]?.[1] ?? "";
+      for (let index = 0; index < firstUnit; index += 1) {
+        const row = pageRows[index];
+        if (row && !row[1]) row[1] = title;
+      }
+    }
+    if (pageRows.length > 0 && rows.length > 1) {
+      const previous = rows[rows.length - 1];
+      const first = pageRows[0];
+      const continued = previous && first && !elementClosed(previous[2] ?? "");
+      if (continued && first) {
+        first.forEach((cell, index) => {
+          previous[index] = appendText(previous[index] ?? "", cell);
+        });
+        pageRows.shift();
+      }
+    }
+    for (const output of pageRows) {
       if (!output[0]) output[0] = previousSubject;
       if (output[0] !== previousSubject) previousUnit = "";
       previousSubject = output[0] ?? "";
       if (!output[1]) output[1] = previousUnit;
       else previousUnit = output[1];
-      if (output.some((cell) => cell.trim())) rows.push(output);
+      rows.push(output);
     }
   }
+  reclaimLevelTails(rows);
   return rows.length > 1 ? rows : null;
 }
-
