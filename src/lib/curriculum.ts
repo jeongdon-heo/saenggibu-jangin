@@ -377,18 +377,32 @@ function nextOrder(data: AppData, subjectId: string): number {
   return questionsFor(data, subjectId).reduce((max, question) => Math.max(max, question.order), 0) + 1;
 }
 
-export function addParsedQuestions(data: AppData, subjectId: string, items: ParsedQuestion[]): Result<AppData> {
+function elementForQuestion(subject: NonNullable<ReturnType<typeof subjectOf>>, name: string, fallbackId: string) {
+  const key = elementNameKey(name);
+  const named = key
+    ? subject.elements.find((candidate) => {
+        const candidateKey = elementNameKey(candidate.name);
+        return candidateKey === key || candidateKey.includes(key) || key.includes(candidateKey);
+      })
+    : undefined;
+  if (named) return named;
+  const fallback = fallbackId ? subject.elements.find((candidate) => candidate.id === fallbackId) : undefined;
+  if (fallback) return fallback;
+  return subject.elements.length === 1 ? subject.elements[0] : undefined;
+}
+
+export function addParsedQuestions(data: AppData, subjectId: string, items: ParsedQuestion[], fallbackElementId = ""): Result<AppData> {
   const subject = subjectOf(data, subjectId);
   if (!subject) return { ok: false, error: "과목을 찾지 못했습니다." };
   if (data.questions.length + items.length > LIMITS.questions) return { ok: false, error: "문제를 더 넣을 수 없습니다." };
   let order = nextOrder(data, subjectId);
   const created: Question[] = items.map((item) => {
-    const element = subject.elements.find((candidate) => candidate.name === item.element);
+    const element = elementForQuestion(subject, item.element, fallbackElementId);
     const question: Question = {
       id: createId(),
       subjectId,
       elementId: element?.id ?? "",
-      elementName: item.element || element?.name || "",
+      elementName: element?.name || item.element || "",
       standardCodes: item.standardCodes.length > 0 ? item.standardCodes : element?.standardCodes ?? [],
       targetLevel: item.targetLevel,
       type: item.type,
@@ -412,6 +426,7 @@ export function updateQuestion(data: AppData, questionId: string, patch: Partial
     questions: data.questions.map((question) => {
       if (question.id !== questionId) return question;
       const next = { ...question, ...patch };
+      if (patch.approved === true) next.selected = true;
       if (next.approved === false) next.selected = false;
       return next;
     }),
@@ -482,7 +497,7 @@ export function buildContextForElements(data: AppData, subjectId: string, elemen
       subject: subject.name,
       counts: requested,
       items: elements.map((element) => {
-        const unit = subject.units.find((item) => item.id === element.unitId);
+        const unit = subject.units.find((item) => item.id === element.unitId) ?? subject.units.find((item) => item.elementId === element.id);
         return {
           element: element.name,
           unitTitle: unit?.title ?? "",

@@ -64,6 +64,8 @@ export function buildQuestionPrompt(context: PromptContext): string {
     "    }",
     "  ]",
     "}",
+    "영어 키 question, text, stem, prompt, choices, options, answer, type도 같은 자리에 쓸 수 있습니다.",
+    "평가요소를 빠뜨리면 앱에서 지금 고른 평가요소로 붙입니다.",
   );
   return lines.join("\n");
 }

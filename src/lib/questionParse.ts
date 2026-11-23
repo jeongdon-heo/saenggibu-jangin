@@ -55,8 +55,8 @@ export function extractJson(raw: string): unknown {
 
 function oneQuestion(value: unknown): ParsedQuestion | null {
   if (!isRecord(value)) return null;
-  const choices = stringList(field(value, ["보기", "choices", "options", "항목"]));
-  const prompt = textOf(field(value, ["문제", "prompt", "question", "문항"]));
+  const choices = stringList(field(value, ["보기", "choices", "options", "선택지", "선지", "항목"]));
+  const prompt = textOf(field(value, ["문제", "prompt", "question", "text", "stem", "문항", "본문"]));
   if (!prompt) return null;
   const type = parseQuestionType(textOf(field(value, ["유형", "type", "kind"])), choices.length > 0);
   return {
@@ -70,6 +70,17 @@ function oneQuestion(value: unknown): ParsedQuestion | null {
     rubric: textOf(field(value, ["채점기준", "채점 기준", "rubric"])),
   };
 }
+
+export const QUESTION_PASTE_EXAMPLE = `{
+  "questions": [
+    {
+      "question": "문제 본문",
+      "type": "choice",
+      "choices": ["보기1", "보기2"],
+      "answer": "보기1"
+    }
+  ]
+}`;
 
 export function parseQuestionPaste(raw: string): Result<ParsedQuestion[]> {
   if (!raw.trim()) return { ok: false, error: "붙여넣은 내용이 비어 있습니다." };

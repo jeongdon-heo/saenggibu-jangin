@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { clearAiKey, readAiKey, writeAiKey } from "../lib/aiKey";
 import { emptyData } from "../lib/defaults";
 import { savedLabel } from "../lib/format";
@@ -56,15 +56,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pagehide", flush);
   }, [bundle.storage]);
 
-  const apply = (next: AppData | ((current: AppData) => AppData)) => {
+  const apply = useCallback((next: AppData | ((current: AppData) => AppData)) => {
     setData((current) => {
       const resolved = typeof next === "function" ? next(current) : next;
       dataRef.current = resolved;
       return resolved;
     });
-  };
+  }, []);
 
-  const replaceAll = (next: AppData) => {
+  const replaceAll = useCallback((next: AppData) => {
     dataRef.current = next;
     persistRef.current = true;
     setPersistAllowed(true);
@@ -74,15 +74,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const result = saveTo(bundle.storage, next);
     setWarning(result.ok ? bundle.warning : result.error);
     if (result.ok) setSavedAt(new Date().toISOString());
-  };
+  }, [bundle.storage, bundle.warning]);
 
-  const persistAiAccess = (remember: boolean, key: string) => {
+  const persistAiAccess = useCallback((remember: boolean, key: string) => {
     setAiKeyState(key);
     if (remember && key.trim()) writeAiKey(bundle.storage, key);
     else clearAiKey(bundle.storage);
-  };
+  }, [bundle.storage]);
 
-  const api: DataApi = {
+  const setAiKey = useCallback((key: string) => {
+    setAiKeyState(key);
+    if (dataRef.current.aiSettings.rememberKey) {
+      if (key.trim()) writeAiKey(bundle.storage, key);
+      else clearAiKey(bundle.storage);
+    }
+  }, [bundle.storage]);
+  const startFresh = useCallback(() => replaceAll(emptyData()), [replaceAll]);
+  const api = useMemo<DataApi>(() => ({
     data,
     savedText: savedLabel(savedAt),
     warning,
@@ -90,17 +98,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     corruptRaw,
     apply,
     replaceAll,
-    startFresh: () => replaceAll(emptyData()),
+    startFresh,
     aiKey,
-    setAiKey: (key: string) => {
-      setAiKeyState(key);
-      if (data.aiSettings.rememberKey) {
-        if (key.trim()) writeAiKey(bundle.storage, key);
-        else clearAiKey(bundle.storage);
-      }
-    },
+    setAiKey,
     persistAiAccess,
-  };
+  }), [aiKey, apply, corruptRaw, data, persistAiAccess, recovering, replaceAll, savedAt, setAiKey, startFresh, warning]);
 
   return <DataContext.Provider value={api}>{children}</DataContext.Provider>;
 }
