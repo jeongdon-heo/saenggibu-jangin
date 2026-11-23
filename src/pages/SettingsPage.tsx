@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAppData } from "../context/DataContext";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { AI_PROVIDERS } from "../lib/ai";
+import { AI_PROVIDERS, GEMINI_DEFAULT_MODEL, migrateGeminiModel } from "../lib/ai";
 import { useToast } from "../components/Toast";
 import { Button, Field, PageHeader } from "../components/ui";
 import type { AiProviderId } from "../types";
@@ -34,7 +34,8 @@ export function SettingsPage() {
         className="sheet space-y-4 p-5"
         onSubmit={(event) => {
           event.preventDefault();
-          const nextModel = model.trim() || current?.defaultModel || "gemini-2.5-flash";
+          const typed = model.trim() || current?.defaultModel || GEMINI_DEFAULT_MODEL;
+          const nextModel = provider === "gemini" ? migrateGeminiModel(typed) : typed;
           apply({ ...data, aiSettings: { provider, model: nextModel, rememberKey: remember } });
           persistAiAccess(remember, key.trim());
           toast(remember ? "이 브라우저에 키를 남겨 두었습니다." : "키는 이 창을 닫으면 사라집니다.");

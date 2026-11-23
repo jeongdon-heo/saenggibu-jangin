@@ -33,7 +33,7 @@ function sample(): AppData {
     levelEstimates: [],
     teacherChecks: [],
     levelDecisions: [],
-    aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
+    aiSettings: { provider: "gemini", model: "gemini-3.8-flash", rememberKey: false },
     records: [
       {
         id: "r1",
@@ -79,6 +79,20 @@ describe("백업 저장과 불러오기", () => {
       expect(wrapped.data).toEqual(data);
       expect(raw.data).toEqual(data);
     }
+  });
+
+  it("쓰이지 않는 Gemini 모델은 gemini-3.8-flash로 바꾼다", () => {
+    for (const model of ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-pro"]) {
+      const parsed = parseBackup(JSON.stringify({ ...sample(), aiSettings: { provider: "gemini", model, rememberKey: false } }));
+      expect(parsed.ok).toBe(true);
+      if (parsed.ok) expect(parsed.data.aiSettings.model).toBe("gemini-3.8-flash");
+    }
+    const kept = parseBackup(JSON.stringify({ ...sample(), aiSettings: { provider: "gemini", model: "gemini-3.6-flash", rememberKey: true } }));
+    expect(kept.ok).toBe(true);
+    if (kept.ok) expect(kept.data.aiSettings).toEqual({ provider: "gemini", model: "gemini-3.6-flash", rememberKey: true });
+    const openai = parseBackup(JSON.stringify({ ...sample(), aiSettings: { provider: "openai", model: "gpt-4o-mini", rememberKey: false } }));
+    expect(openai.ok).toBe(true);
+    if (openai.ok) expect(openai.data.aiSettings.model).toBe("gpt-4o-mini");
   });
 
   it("실명 항목이 없어도 학생을 받는다", () => {
