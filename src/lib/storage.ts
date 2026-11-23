@@ -1,3 +1,4 @@
+import { migrateGeminiModel, GEMINI_DEFAULT_MODEL } from "./ai";
 import { defaultAiSettings, emptyData } from "./defaults";
 import { LIMITS } from "./limits";
 import type {
@@ -340,10 +341,11 @@ function normalizeQuestions(value: unknown, subjects: Subject[]): Result<Questio
 function normalizeAiSettings(value: unknown): AiSettings {
   if (!isRecord(value)) return defaultAiSettings();
   const provider = value.provider === "openai" || value.provider === "gemini" ? value.provider : "gemini";
-  const fallback = provider === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash";
+  const fallback = provider === "openai" ? "gpt-4o-mini" : GEMINI_DEFAULT_MODEL;
+  const model = asString(value.model, LIMITS.modelName, fallback) || fallback;
   return {
     provider,
-    model: asString(value.model, LIMITS.modelName, fallback) || fallback,
+    model: provider === "gemini" ? migrateGeminiModel(model) : model,
     rememberKey: value.rememberKey === true,
   };
 }

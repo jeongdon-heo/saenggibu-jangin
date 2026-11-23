@@ -1,8 +1,9 @@
 import type { AiSettings, AppData, ClassInfo, Subject } from "../types";
+import { GEMINI_DEFAULT_MODEL } from "./ai";
 import { createId } from "./id";
 
 export function defaultAiSettings(): AiSettings {
-  return { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false };
+  return { provider: "gemini", model: GEMINI_DEFAULT_MODEL, rememberKey: false };
 }
 
 export function emptySubject(id: string, name: string): Subject {

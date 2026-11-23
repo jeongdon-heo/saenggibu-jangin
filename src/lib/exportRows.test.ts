@@ -12,7 +12,7 @@ const data: AppData = {
   levelEstimates: [],
   teacherChecks: [],
   levelDecisions: [],
-  aiSettings: { provider: "gemini", model: "gemini-2.5-flash", rememberKey: false },
+  aiSettings: { provider: "gemini", model: "gemini-3.8-flash", rememberKey: false },
   classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
   students: [
     { id: "s2", number: 2, alias: "ㄷㄹ", realName: "홍길동" },

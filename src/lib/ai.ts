@@ -8,12 +8,26 @@ export type AiCompleteInput = {
   system?: string;
 };
 
+export const GEMINI_DEFAULT_MODEL = "gemini-3.8-flash";
+
+export function migrateGeminiModel(model: string): string {
+  const id = model.trim().replace(/^models\//, "");
+  if (!id) return GEMINI_DEFAULT_MODEL;
+  const retired =
+    id === "gemini-2.5-flash" ||
+    id === "gemini-2.5-pro" ||
+    id === "gemini-pro" ||
+    /^gemini-1(\.|-|$)/.test(id) ||
+    /^gemini-2\.0($|-)/.test(id);
+  return retired ? GEMINI_DEFAULT_MODEL : id;
+}
+
 export const AI_PROVIDERS: Array<{ id: AiProviderId; label: string; defaultModel: string; models: string[]; keyHint: string }> = [
   {
     id: "gemini",
     label: "Gemini",
-    defaultModel: "gemini-2.5-flash",
-    models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+    defaultModel: GEMINI_DEFAULT_MODEL,
+    models: ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"],
     keyHint: "Google AI Studio에서 받은 키",
   },
   {
@@ -36,8 +50,24 @@ function scrub(text: string, apiKey: string): string {
 function httpError(status: number, body: string, apiKey: string): string {
   if (status === 401 || status === 403) return "API 키를 확인하지 못했습니다. 키와 제공자를 다시 봐 주세요.";
   if (status === 429) return "요청이 많습니다. 잠시 뒤 다시 시도해 주세요.";
-  if (status === 404) return "모델 이름을 찾지 못했습니다. 설정에서 모델 이름을 바꿔 보세요.";
+  if (status === 404) return "모델 이름을 찾지 못했습니다. Gemini라면 gemini-3.8-flash로 바꿔 보세요.";
   return `인공지능 응답이 거절되었습니다. ${scrub(body, apiKey)}`;
+}
+
+export function geminiRequestBody(input: Pick<AiCompleteInput, "model" | "prompt" | "system">): {
+  systemInstruction: { parts: Array<{ text: string }> };
+  contents: Array<{ role: "user"; parts: Array<{ text: string }> }>;
+  generationConfig: { responseMimeType: "application/json"; thinkingConfig?: { thinkingLevel: "LOW" } };
+} {
+  const generationConfig: { responseMimeType: "application/json"; thinkingConfig?: { thinkingLevel: "LOW" } } = {
+    responseMimeType: "application/json",
+  };
+  if (/^gemini-3(\.|-|$)/.test(input.model)) generationConfig.thinkingConfig = { thinkingLevel: "LOW" };
+  return {
+    systemInstruction: { parts: [{ text: input.system ?? SYSTEM }] },
+    contents: [{ role: "user", parts: [{ text: input.prompt }] }],
+    generationConfig,
+  };
 }
 
 async function completeGemini(input: AiCompleteInput): Promise<string> {
@@ -47,19 +77,19 @@ async function completeGemini(input: AiCompleteInput): Promise<string> {
     response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": input.apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: input.system ?? SYSTEM }] },
-        contents: [{ role: "user", parts: [{ text: input.prompt }] }],
-        generationConfig: { temperature: 0.4, responseMimeType: "application/json" },
-      }),
+      body: JSON.stringify(geminiRequestBody(input)),
     });
   } catch {
     throw new Error("브라우저에서 Gemini에 연결하지 못했습니다. 네트워크를 확인하거나 프롬프트 복사를 사용하세요.");
   }
   const body = await response.text();
   if (!response.ok) throw new Error(httpError(response.status, body, input.apiKey));
-  const parsed = JSON.parse(body) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  const text = parsed.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+  const parsed = JSON.parse(body) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> };
+  const text =
+    parsed.candidates?.[0]?.content?.parts
+      ?.filter((part) => part.thought !== true)
+      .map((part) => part.text ?? "")
+      .join("") ?? "";
   if (!text.trim()) throw new Error("응답이 비어 있습니다. 프롬프트 복사로 다시 만들어 보세요.");
   return text;
 }
