@@ -6,7 +6,7 @@ import { buildCommentPrompt } from "./commentPrompt";
 import { guardPrompt } from "./guard";
 import { parseBackup, serializeBackup } from "./storage";
 import { suggestSkip } from "./topics";
-import { bulkSetColumn, combinedFor, lessonTopics, levelForComment, setLevelDecision, upsertTeacherCheck } from "./teacherAssess";
+import { bulkSetColumn, combinedFor, lessonTopics, levelForComment, setLevelDecision, topicStandards, upsertTeacherCheck } from "./teacherAssess";
 
 function classData() {
   const data = emptyData();
@@ -100,6 +100,17 @@ describe("학습주제", () => {
     const subject = classData().subjects[0]!;
     subject.units = subject.units.map((unit) => (unit.title.includes("총정리") ? { ...unit, skipped: true } : unit));
     expect(lessonTopics(subject).map((unit) => unit.title)).toEqual(["2. 이야기를 간추려요"]);
+  });
+
+  it("학습주제에 연결된 성취기준 코드와 문장을 찾는다", () => {
+    const subject = classData().subjects[0]!;
+    const topic = subject.units.find((unit) => unit.id === "u1")!;
+    expect(topicStandards(subject, topic)).toEqual([{ code: "4국02-01", text: "중심 내용을 파악한다." }]);
+    subject.elements[0]!.standardCodes = ["[4국02-01]"];
+    expect(topicStandards(subject, topic)[0]?.code).toBe("4국02-01");
+    expect(topicStandards(subject, { ...topic, elementId: "" })).toEqual([]);
+    subject.elements[0]!.standardCodes = [];
+    expect(topicStandards(subject, topic)).toEqual([]);
   });
 });
 
