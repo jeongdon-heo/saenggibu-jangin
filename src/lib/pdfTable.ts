@@ -417,6 +417,62 @@ function assignUnitAnchors(rows: string[][], positions: number[], anchors: Array
     }
     if (chosen?.anchor.text) row[1] = chosen.anchor.text;
   });
+  alignUnitsToContent(rows);
+}
+
+function hangulOnly(text: string): string {
+  return text.replace(/[^가-힣]/g, "");
+}
+
+function titleOverlap(element: string, title: string): number {
+  const body = title.replace(/^(?:<[^>]+>\s*)?(?:\d+(?:-\d+)?\.\s*)/, "");
+  const left = hangulOnly(element);
+  const right = hangulOnly(body);
+  if (left.length < 2 || right.length < 2) return 0;
+  const bag = new Map<string, number>();
+  for (let index = 0; index < left.length - 1; index += 1) {
+    const gram = left.slice(index, index + 2);
+    bag.set(gram, (bag.get(gram) ?? 0) + 1);
+  }
+  let hits = 0;
+  for (let index = 0; index < right.length - 1; index += 1) {
+    const gram = right.slice(index, index + 2);
+    const count = bag.get(gram) ?? 0;
+    if (count > 0) {
+      hits += 1;
+      bag.set(gram, count - 1);
+    }
+  }
+  return (2 * hits) / (left.length - 1 + (right.length - 1));
+}
+
+function alignUnitsToContent(rows: string[][]): void {
+  const data = rows.slice(1);
+  data.forEach((row, index) => {
+    const subject = row[0] ?? "";
+    const current = row[1] ?? "";
+    if (!subject || !current) return;
+    const options = [current];
+    const previous = data[index - 1];
+    const next = data[index + 1];
+    if (previous?.[0] === subject && previous[1] && previous[1] !== current) options.push(previous[1]);
+    if (next?.[0] === subject && next[1] && next[1] !== current) options.push(next[1]);
+    if (options.length < 2) return;
+    const element = row[2] ?? "";
+    const currentOverlap = titleOverlap(element, current);
+    if (currentOverlap >= 0.18) return;
+    let best = current;
+    let bestScore = currentOverlap;
+    for (const title of options) {
+      if (title === current) continue;
+      const score = titleOverlap(element, title);
+      if (score > bestScore) {
+        bestScore = score;
+        best = title;
+      }
+    }
+    if (best !== current && bestScore >= 0.18 && bestScore > currentOverlap + 0.12) row[1] = best;
+  });
 }
 
 const OUTPUT = ["과목", "단원", "평가요소", "영역", "시기", "평가방법", "성취기준", "상", "중", "하"] as const;

@@ -12,6 +12,7 @@ export const LIMITS = {
   writing: 20000,
   backupChars: 4_000_000,
   units: 400,
+  lessons: 800,
   elements: 80,
   levels: 8,
   questions: 200,

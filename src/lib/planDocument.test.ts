@@ -491,7 +491,17 @@ describe("4학년 2학기 수행평가 계획", () => {
       }
     }
     const social = applied.data.subjects.find((subject) => subject.name === "사회");
-    expect(lessonTopics(social!).map((topic) => topic.title).filter((title) => title.startsWith("1."))).toHaveLength(4);
+    expect(lessonTopics(social!).map((topic) => topic.title).filter((title) => title.startsWith("1."))).toHaveLength(3);
+    const math = result.data.subjects.find((subject) => subject.name === "수학");
+    expect(math?.elements.find((item) => item.name.includes("소수를 이해하고"))?.unitTitle).toContain("소수의 덧셈");
+    expect(math?.elements.find((item) => item.name.includes("수집된 자료"))?.unitTitle).toContain("꺾은선그래프");
+    expect(math?.elements.find((item) => item.name.includes("사각형을 분류"))?.unitTitle).toContain("사각형");
+    const science = result.data.subjects.find((subject) => subject.name === "과학");
+    expect(science?.elements.find((item) => item.name.includes("온도에 따른 기체의 부피"))?.unitTitle).toContain("기체");
+    expect(science?.elements.find((item) => item.name.includes("기후변화와 인간"))?.unitTitle).toContain("기후");
+    const pe = result.data.subjects.find((subject) => subject.name === "체육");
+    expect(pe?.elements.find((item) => item.name.includes("공차기"))?.unitTitle).toContain("2-2");
+    expect(pe?.elements.find((item) => item.name.includes("균형잡고"))?.unitTitle).toContain("2-3");
   });
 
   it("문서 하단 문항수와 다르면 검토 경고를 남긴다", () => {

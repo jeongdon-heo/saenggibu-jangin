@@ -6,7 +6,7 @@ export function defaultAiSettings(): AiSettings {
 }
 
 export function emptySubject(id: string, name: string): Subject {
-  return { id, name, plan: [], standards: [], units: [], elements: [] };
+  return { id, name, plan: [], standards: [], units: [], elements: [], lessons: [] };
 }
 
 export function emptyData(): AppData {

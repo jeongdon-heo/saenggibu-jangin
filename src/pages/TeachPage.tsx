@@ -2,10 +2,12 @@ import { useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { cx, PageHeader } from "../components/ui";
 import { useAppData } from "../context/DataContext";
+import { updateUnit } from "../lib/curriculum";
+import { pageHint, type PageHint } from "../lib/textbookPages";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { sortedStudents } from "../lib/model";
 import { bulkSetColumn, EVIDENCE_LABEL, findCheck, lessonTopics, levelLabels, toggleEvidence, topicStandards, upsertTeacherCheck } from "../lib/teacherAssess";
-import type { EvidenceKind, Student, Unit } from "../types";
+import type { EvidenceKind, Student, Subject, Unit } from "../types";
 
 const KINDS: EvidenceKind[] = ["observe", "paper", "performance"];
 const KIND_KEY: Record<string, EvidenceKind> = { q: "observe", w: "paper", e: "performance" };
@@ -99,10 +101,11 @@ export function TeachPage() {
                     <tr>
                       <th className="sticky left-0 z-10 bg-paper px-2 py-2 text-left">번호</th>
                       {topics.map((topic) => (
-                        <th key={topic.id} className="min-w-44 px-2 py-2 text-left align-bottom font-medium">
+                        <th key={topic.id} className="relative min-w-44 px-2 py-2 text-left align-bottom font-medium">
                           <span className="block">{topic.title}</span>
                           <span className="mt-0.5 block text-xs font-normal text-muted">{subject.elements.find((element) => element.id === topic.elementId)?.name || "평가요소 없음"}</span>
                           <StandardCodes standards={topicStandards(subject, topic)} />
+                          <TopicPages subject={subject} topic={topic} />
                           <select
                             className="control mt-2 h-9 text-xs"
                             aria-label={`${topic.title} 열 전체 수준`}
@@ -149,6 +152,95 @@ export function TeachPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function TopicPages({ subject, topic }: { subject: Subject; topic: Unit }) {
+  const { data, apply } = useAppData();
+  const hint = pageHint(subject, topic);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  if (!hint) return null;
+  function save(pages: string) {
+    apply(updateUnit(data, subject.id, topic.id, { chosenPages: pages.trim() }));
+    setOpen(false);
+  }
+  return (
+    <TopicPagesView
+      hint={hint}
+      open={open}
+      draft={draft}
+      onDraft={setDraft}
+      onToggle={() => {
+        setDraft(hint.shownPages);
+        setOpen((value) => !value);
+      }}
+      onSave={save}
+    />
+  );
+}
+
+export function TopicPagesView({
+  hint,
+  open,
+  draft,
+  onDraft,
+  onToggle,
+  onSave,
+}: {
+  hint: PageHint;
+  open: boolean;
+  draft: string;
+  onDraft: (value: string) => void;
+  onToggle: () => void;
+  onSave: (pages: string) => void;
+}) {
+  return (
+    <div className="mt-0.5">
+      <p className="text-[11px] font-normal leading-4 text-muted">
+        {hint.unitPages}
+        {hint.extraPages ? ` · 보조 ${hint.extraPages}` : ""}
+      </p>
+      <button
+        type="button"
+        className="text-[11px] font-normal leading-4 text-brand"
+        aria-expanded={open}
+        title={hint.recommendedContent}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggle();
+        }}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        {hint.chosen ? "선택" : "추천"} {hint.shownPages}
+      </button>
+      {open ? (
+        <div className="absolute left-0 z-30 mt-1 max-h-72 w-72 overflow-y-auto rounded-2xl border border-line bg-white p-2 text-left shadow" role="dialog" aria-label="차시 쪽수">
+          <ul className="space-y-1">
+            {hint.choices.map((choice) => (
+              <li key={`${choice.period}-${choice.pages}-${choice.content}`}>
+                <button type="button" className="w-full rounded-xl px-2 py-1 text-left text-xs hover:bg-paper" onClick={() => onSave(choice.pages)}>
+                  <span className="font-medium">{choice.period}차시 · {choice.pages}</span>
+                  <span className="mt-0.5 block font-normal text-muted">{choice.content}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <label className="mt-2 block text-xs font-normal text-muted">
+            쪽수 직접 입력
+            <input className="control mt-1 h-8 text-xs" aria-label="쪽수 직접 입력" value={draft} onChange={(event) => onDraft(event.target.value)} onKeyDown={(event) => event.stopPropagation()} />
+          </label>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className="text-xs font-normal text-brand" onClick={() => onSave(draft)}>
+              저장
+            </button>
+            <button type="button" className="text-xs font-normal text-muted" onClick={() => onSave("")}>
+              추천으로
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
