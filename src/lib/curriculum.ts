@@ -109,6 +109,56 @@ function unitForTitle(subject: { units: Unit[] }, title: string): string {
   return unit?.id ?? "";
 }
 
+export function linkTopicsToElements(data: AppData, subjectId: string, items: ParsedElement[]): AppData {
+  const subject = subjectOf(data, subjectId);
+  if (!subject) return data;
+  const elements = subject.elements.map((element) => ({ ...element, levels: element.levels.map((level) => ({ ...level })) }));
+  const units = subject.units.map((unit) => ({ ...unit }));
+  const claimed = new Set<string>();
+  const usedElements = new Set<string>();
+  const reorder = units.every((unit) => !unit.elementId);
+  let previousTitle = "";
+  items.forEach((item, index) => {
+    const name = item.name.replace(/\s+/g, " ").trim();
+    if (!name) return;
+    const element = elements.find((candidate) => !usedElements.has(candidate.id) && elementNameKey(candidate.name) === elementNameKey(name));
+    if (!element) return;
+    usedElements.add(element.id);
+    const cleaned = cleanUnitTitle(item.unitTitle);
+    if (cleaned) previousTitle = cleaned;
+    const title = (cleaned || previousTitle || name).slice(0, LIMITS.shortField);
+    const key = unitMatchKey(title);
+    let unit = units.find((candidate) => !claimed.has(candidate.id) && !candidate.elementId && unitMatchKey(candidate.title) === key);
+    if (!unit) {
+      unit = {
+        id: createId(),
+        order: index + 1,
+        grade: subject.units[0]?.grade ?? null,
+        semester: subject.units[0]?.semester ?? null,
+        organization: "",
+        title,
+        content: "",
+        pages: "",
+        extraPages: "",
+        period: item.note.trim().slice(0, LIMITS.shortField),
+        totalPeriods: "",
+        materials: "",
+        skipped: suggestSkip(title, ""),
+        elementId: "",
+      };
+      units.push(unit);
+    }
+    claimed.add(unit.id);
+    unit.elementId = element.id;
+    unit.title = title;
+    if (reorder) unit.order = index + 1;
+    if (!unit.period && item.note.trim()) unit.period = item.note.trim().slice(0, LIMITS.shortField);
+    element.unitId = unit.id;
+    if (element.note.startsWith("단원:")) element.note = item.note.trim().slice(0, LIMITS.standardText);
+  });
+  return mapSubject(data, subjectId, (current) => ({ ...current, elements, units }));
+}
+
 export function ensureUnitsForTitles(data: AppData, subjectId: string, titles: string[]): AppData {
   let next = data;
   const seen = new Set<string>();

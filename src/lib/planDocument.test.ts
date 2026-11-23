@@ -8,6 +8,7 @@ import { addSubject } from "./model";
 import { layoutPlanTable } from "./pdfTable";
 import type { PdfGlyph } from "./pdfRead";
 import { applyPlanSelections } from "./planApply";
+import { lessonTopics, levelLabels } from "./teacherAssess";
 import { HWP_UNSUPPORTED, interpretPlan, planImportTarget, readPlanFile } from "./planDocument";
 import { buildPlanPrompt, parsePlanAiResponse } from "./planPrompt";
 import { subjectFromCode } from "./subjectCode";
@@ -443,6 +444,54 @@ describe("4학년 2학기 수행평가 계획", () => {
     expect(unit?.title).toContain("생각을 나누며 책을 읽어요");
     expect(unit?.title).not.toMatch(/\d+\s*월/);
     expect(linked?.note ?? "").not.toContain("단원:");
+  });
+
+  it("평가 항목마다 교사 평가 열을 만들고 잘린 단원을 붙인다", async () => {
+    const result = await readPlanFile("4학년-2학기.pdf", pdfBytes(grade4Term2.base64));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const text = JSON.stringify(result.data);
+    expect(text).not.toContain("필요 성");
+    expect(text).not.toContain("해결 하기");
+    expect(text).not.toContain("조사 하고");
+    expect(text).toContain("필요성");
+    expect(text).toContain("해결하기");
+    expect(text).toContain("조사하고");
+    const moral = result.data.subjects.find((subject) => subject.name === "도덕");
+    const dmz = moral?.elements.filter((item) => item.name.includes("비무장")) ?? [];
+    expect(dmz.length).toBeGreaterThan(1);
+    expect(dmz.every((item) => item.unitTitle.includes("비무장") && item.unitTitle.includes("생명의 땅"))).toBe(true);
+    expect(result.data.subjects.flatMap((subject) => subject.elements.map((item) => item.unitTitle)).some((title) => title === "말릴까 얼릴까?")).toBe(false);
+    expect(result.data.subjects.some((subject) => subject.elements.some((item) => /\d+\.\s+\S.*\s\d+(?:-\d+)?\./.test(item.unitTitle)))).toBe(false);
+
+    const applied = applyPlanSelections(
+      emptyData(),
+      result.data.subjects.map((subject) => ({
+        subjectId: "",
+        createName: subject.name,
+        plan: subject.plan,
+        standards: subject.standards,
+        elements: subject.elements,
+      })),
+    );
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const expected: Record<string, number> = { 국어: 16, 사회: 12, 도덕: 8, 수학: 18, 과학: 15, 체육: 17, 음악: 13, 미술: 5, 영어: 21 };
+    for (const [name, count] of Object.entries(expected)) {
+      const subject = applied.data.subjects.find((item) => item.name === name);
+      expect(subject).toBeTruthy();
+      if (!subject) continue;
+      const topics = lessonTopics(subject);
+      expect(topics).toHaveLength(count);
+      for (const topic of topics) {
+        expect(topic.elementId).not.toBe("");
+        const element = subject.elements.find((item) => item.id === topic.elementId);
+        expect(element?.name).toBeTruthy();
+        expect(levelLabels(subject, topic)).toEqual(element?.levels.map((level) => level.label).filter(Boolean));
+      }
+    }
+    const social = applied.data.subjects.find((subject) => subject.name === "사회");
+    expect(lessonTopics(social!).map((topic) => topic.title).filter((title) => title.startsWith("1."))).toHaveLength(4);
   });
 
   it("문서 하단 문항수와 다르면 검토 경고를 남긴다", () => {
