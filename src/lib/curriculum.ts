@@ -88,11 +88,61 @@ function elementNameKey(name: string): string {
   return name.replace(/\s+/g, "").trim();
 }
 
+export function cleanUnitTitle(title: string): string {
+  return title
+    .replace(/\d+\s*월\s*\d*\s*주/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function unitMatchKey(title: string): string {
+  return cleanUnitTitle(title)
+    .replace(/<[^>]*>/g, "")
+    .replace(/^\d+(?:[-.]\d+)*\.?\s*/, "")
+    .replace(/\s+/g, "");
+}
+
 function unitForTitle(subject: { units: Unit[] }, title: string): string {
-  const trimmed = title.trim();
-  if (!trimmed) return "";
-  const unit = subject.units.find((candidate) => candidate.title === trimmed || candidate.title.includes(trimmed));
+  const key = unitMatchKey(title);
+  if (!key) return "";
+  const unit = subject.units.find((candidate) => unitMatchKey(candidate.title) === key);
   return unit?.id ?? "";
+}
+
+export function ensureUnitsForTitles(data: AppData, subjectId: string, titles: string[]): AppData {
+  let next = data;
+  const seen = new Set<string>();
+  for (const raw of titles) {
+    const title = cleanUnitTitle(raw);
+    const key = unitMatchKey(title);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const subject = subjectOf(next, subjectId);
+    if (!subject) return next;
+    if (subject.units.some((unit) => unitMatchKey(unit.title) === key)) continue;
+    const added = addUnits(
+      next,
+      subjectId,
+      [
+        {
+          order: subject.units.length + 1,
+          grade: subject.units[0]?.grade ?? null,
+          semester: subject.units[0]?.semester ?? null,
+          organization: "",
+          title,
+          content: "",
+          pages: "",
+          extraPages: "",
+          period: "",
+          totalPeriods: "",
+          materials: "",
+        },
+      ],
+      "append",
+    );
+    if (added.ok) next = added.data;
+  }
+  return next;
 }
 
 function noteWithUnit(note: string, unitTitle: string, unitId: string): string {

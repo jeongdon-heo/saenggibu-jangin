@@ -2,6 +2,7 @@ import { zipSync, strToU8 } from "fflate";
 import { describe, expect, it } from "vitest";
 import { emptyData } from "./defaults";
 import grade4Glyphs from "./fixtures/grade4-plan-glyphs.json";
+import grade4Term2 from "./fixtures/grade4-term2-plan.json";
 import { guardPrompt } from "./guard";
 import { addSubject } from "./model";
 import { layoutPlanTable } from "./pdfTable";
@@ -294,8 +295,9 @@ describe("평가계획 넣기", () => {
     expect(subject?.elements).toHaveLength(2);
     expect(subject?.elements[0]?.unitId).toBe("unit-1");
     expect(subject?.elements[0]?.note).toBe("");
-    expect(subject?.elements[1]?.unitId).toBe("");
-    expect(subject?.elements[1]?.note).toBe("단원: 없는 단원");
+    expect(subject?.elements[1]?.unitId).not.toBe("");
+    expect(subject?.units.find((unit) => unit.title === "없는 단원")).toBeTruthy();
+    expect(subject?.elements[1]?.note).toBe("");
     expect(subject?.elements[0]?.levels[0]?.description).toBe("자신의 말로 설명한다");
     expect(applied.addedPlan).toBe(0);
     expect(applied.addedElements).toBe(1);
@@ -367,6 +369,96 @@ describe("과목별 나누기", () => {
     expect(standard).toContain("비교한다");
     expect(korean?.elements[0]?.levels.find((level) => level.label === "상")?.description).toContain("올바르게");
     expect(korean?.elements[0]?.unitTitle).toContain("독서");
+  });
+});
+
+function pdfBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+describe("4학년 2학기 수행평가 계획", () => {
+  it("쪽 경계에서 잘린 칸을 잇고 꼬리말과 문항수를 맞춘다", async () => {
+    const result = await readPlanFile("4학년-2학기.pdf", pdfBytes(grade4Term2.base64));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const byName = Object.fromEntries(result.data.subjects.map((subject) => [subject.name, subject]));
+    expect(byName["국어"]?.plan).toHaveLength(16);
+    expect(byName["사회"]?.plan).toHaveLength(12);
+    expect(byName["도덕"]?.plan).toHaveLength(8);
+    expect(byName["수학"]?.plan).toHaveLength(18);
+    expect(byName["과학"]?.plan).toHaveLength(15);
+    expect(byName["체육"]?.plan).toHaveLength(17);
+    expect(byName["음악"]?.plan).toHaveLength(13);
+    expect(byName["미술"]?.plan).toHaveLength(5);
+    expect(byName["영어"]?.plan).toHaveLength(21);
+    for (const subject of result.data.subjects) {
+      expect(subject.elements).toHaveLength(subject.plan.length);
+      for (const item of subject.elements) expect(item.unitTitle).not.toMatch(/\d+\s*월/);
+    }
+    expect(result.data.warnings.some((warning) => warning.includes("문서 하단"))).toBe(false);
+    const text = JSON.stringify(result.data);
+    expect(text).not.toContain("문항수");
+    expect(text).not.toContain("▣");
+    expect(text).not.toContain("수있다");
+    expect(text).not.toContain("된후의");
+    expect(text).toContain("프로젝트 평가");
+    expect(text).toContain("꺾은선그래프");
+    expect(text).toContain("사실과 의견");
+    expect(text).toContain("통일이 된 후의");
+
+    const health = byName["체육"]?.elements.find((item) => item.name.includes("운동과 건강"));
+    expect(health?.levels.find((level) => level.label === "상")?.description).toContain("영향을 설명할 수 있다.");
+    const fitness = byName["체육"]?.elements.find((item) => item.name.includes("자신의 체격"));
+    expect(fitness?.levels.find((level) => level.label === "상")?.description.startsWith("자신의 체격")).toBe(true);
+    const sport = byName["체육"]?.elements.find((item) => item.name.includes("스포츠에 흥미"));
+    const sportHigh = sport?.levels.find((level) => level.label === "상")?.description ?? "";
+    expect(sportHigh.startsWith("다양한 움직임 기술의 원리와 기본")).toBe(true);
+    expect(sportHigh.endsWith("참여할 수 있다.")).toBe(true);
+    const dmz = byName["도덕"]?.elements.find((item) => item.name.includes("비무장") && item.name.includes("보존"));
+    expect(dmz?.name).toBe("비무장 지대가 중요한 까닭을 알고 통일이 된 후의 보존 방향 알아보기");
+    expect(dmz?.levels.find((level) => level.label === "상")?.description.endsWith("설명할 수 있다.")).toBe(true);
+    const levels = result.data.subjects.flatMap((subject) => subject.elements.flatMap((item) => item.levels));
+    const unfinished = levels.filter((level) => level.description.trim() && !/(?:다|요|까)\.?$/.test(level.description.trim()));
+    expect(unfinished).toEqual([]);
+
+    const created = addSubject(emptyData(), "국어");
+    expect(created.ok).toBe(true);
+    if (!created.ok || !created.id) return;
+    const applied = applyPlanSelections(created.data, [
+      {
+        subjectId: created.id,
+        createName: "",
+        plan: [],
+        standards: [],
+        elements: byName["국어"]?.elements.slice(0, 1) ?? [],
+      },
+    ]);
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const linked = applied.data.subjects[0]?.elements[0];
+    const unit = applied.data.subjects[0]?.units.find((item) => item.id === linked?.unitId);
+    expect(unit?.title).toContain("생각을 나누며 책을 읽어요");
+    expect(unit?.title).not.toMatch(/\d+\s*월/);
+    expect(linked?.note ?? "").not.toContain("단원:");
+  });
+
+  it("문서 하단 문항수와 다르면 검토 경고를 남긴다", () => {
+    const plan = interpretPlan(
+      [
+        {
+          kind: "table",
+          rows: [
+            ["과목", "단원", "평가요소", "영역", "시기", "평가방법", "성취기준", "상", "중", "하"],
+            ["도덕", "1. 통일", "까닭을 알고", "공동체", "", "서술", "[4도01-01] 통일을 설명한다.", "설명한다.", "말한다.", "어려워한다."],
+          ],
+        },
+      ],
+      { 도덕: 8 },
+    );
+    expect(plan.warnings.some((warning) => warning.includes("도덕") && warning.includes("8개"))).toBe(true);
   });
 });
 

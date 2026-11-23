@@ -1,6 +1,11 @@
 import type { DocBlock } from "./documentBlocks";
-import { layoutPlanTable } from "./pdfTable";
+import { layoutPlanTable, readExpectedCounts } from "./pdfTable";
 import type { Result } from "../types";
+
+export type PdfExtraction = {
+  blocks: DocBlock[];
+  expectedCounts: Record<string, number>;
+};
 
 export type PdfGlyph = {
   text: string;
@@ -143,7 +148,7 @@ export function glyphsToBlocks(glyphs: PdfGlyph[]): DocBlock[] {
   return blocks;
 }
 
-export async function readPdfBlocks(bytes: Uint8Array): Promise<Result<DocBlock[]>> {
+export async function readPdfBlocks(bytes: Uint8Array): Promise<Result<PdfExtraction>> {
   try {
     const pdfjs = await loadPdfjs();
     const document = await pdfjs.getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: false }).promise;
@@ -161,9 +166,10 @@ export async function readPdfBlocks(bytes: Uint8Array): Promise<Result<DocBlock[
       }
       pages.push(glyphs);
     }
+    const expectedCounts = readExpectedCounts(pages);
     const table = layoutPlanTable(pages);
-    if (table) return { ok: true, data: [{ kind: "table", rows: table }] };
-    return { ok: true, data: pages.flatMap((glyphs) => glyphsToBlocks(glyphs)) };
+    if (table) return { ok: true, data: { blocks: [{ kind: "table", rows: table }], expectedCounts } };
+    return { ok: true, data: { blocks: pages.flatMap((glyphs) => glyphsToBlocks(glyphs)), expectedCounts } };
   } catch {
     return { ok: false, error: "PDF에서 글자를 읽지 못했습니다. 암호가 걸려 있거나, 글자 대신 그림만 있는 파일일 수 있습니다." };
   }
