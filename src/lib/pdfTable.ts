@@ -137,9 +137,10 @@ function glueLines(lines: LineInfo[], right: number): string {
     const cutTail = /^[가-힣]$/.test(previous.lastToken) || /[·ㆍ\-–—][가-힣]$/.test(previous.lastToken) || / [가-힣]$/.test(previous.text);
     const ended = /[.?!。]$/.test(previous.text) || sentenceEnded(previous.text);
     const auxiliary = previous.lastToken === "수" && /^[있없]/.test(nextFirst);
+    const boundTail = /^(?:하기|하고|하며|하여|하는|하면|해서|성)(?:[\s,]|$|[을를이가은는에의])/.test(line.text) || (previous.lastToken === "필요" && nextFirst === "한");
     let space = true;
-    if (ended || auxiliary) space = true;
-    else if (particle || (full && (nextFragment || cutTail))) space = false;
+    if (auxiliary || (ended && !boundTail)) space = true;
+    else if (particle || boundTail || (full && (nextFragment || cutTail))) space = false;
     out += `${space ? " " : ""}${line.text}`;
     previous = line;
   }
@@ -259,6 +260,7 @@ function elementClosed(text: string): boolean {
 type LaidPage = {
   rows: string[][];
   overflow: string[];
+  centers: number[];
 };
 
 
@@ -269,6 +271,7 @@ function appendText(previous: string, extra: string): string {
   const nextFirst = trimmed.split(/\s+/)[0] ?? "";
   const lastToken = previous.trim().split(/\s+/).at(-1) ?? "";
   if (sentenceEnded(previous) || (lastToken === "수" && /^[있없]/.test(trimmed))) return polishSpacing(`${previous} ${trimmed}`);
+  if (/^(?:하기|하고|하며|하여|하는|하면|해서|성)(?:[\s,]|$|[을를이가은는에의])/.test(trimmed) || (lastToken === "필요" && trimmed.startsWith("한"))) return polishSpacing(`${previous}${trimmed}`);
   if (PARTICLE.test(trimmed) || isHangulFragment(nextFirst) || / [가-힣]$/.test(previous.trim())) return polishSpacing(`${previous}${trimmed}`);
   return polishSpacing(`${previous} ${trimmed}`);
 }
@@ -285,7 +288,7 @@ function layoutPage(glyphs: PdfGlyph[], columns: Column[], bodyTop: number): Lai
     }))
     .sort((left, right) => right.top - left.top);
   const starts = blocks.map((block) => block.top);
-  if (starts.length === 0) return { rows: [], overflow: columns.map(() => "") };
+  if (starts.length === 0) return { rows: [], overflow: columns.map(() => ""), centers: [] };
   const columnLineCache = columns.map((column) => columnLines(body, column));
   for (let index = 0; index < starts.length; index += 1) {
     let raised = starts[index] ?? 0;
@@ -332,7 +335,88 @@ function layoutPage(glyphs: PdfGlyph[], columns: Column[], bodyTop: number): Lai
     }),
   );
   const overflow = columns.map((column, columnIndex) => glueLines(overflowLines[columnIndex] ?? [], column.x1));
-  return { rows, overflow };
+  const centers = blocks.map((block) => (block.top + block.bottom) / 2);
+  return { rows, overflow, centers };
+}
+
+const UNIT_HEAD = /^(?:\d+(?:-\d+)?\.|[<＜“"]|[A-Za-z])/;
+
+function place(pageIndex: number, y: number): number {
+  return pageIndex * 900 + (900 - y);
+}
+
+function unitAnchors(pages: PdfGlyph[][], columns: Column[]): Array<{ pos: number; text: string }> {
+  const column = columns.find((item) => item.role === "unit");
+  if (!column) return [];
+  const blocks: Array<{ pos: number; text: string }> = [];
+  pages.forEach((page, pageIndex) => {
+    const lines = columnLines(
+      page.filter((glyph) => glyph.text.trim() && !isNoise(glyph.text) && glyph.y < 790 && glyph.y > 28),
+      column,
+    );
+    let group: LineInfo[] = [];
+    const flush = () => {
+      if (group.length === 0) return;
+      const text = glueLines(group, column.x1);
+      const y = group.reduce((sum, line) => sum + line.y, 0) / group.length;
+      if (text && !/^(단원|학습주제)$/.test(text)) blocks.push({ pos: place(pageIndex, y), text });
+      group = [];
+    };
+    for (const line of lines) {
+      const previous = group[group.length - 1];
+      if (previous && previous.y - line.y > 14) flush();
+      group.push(line);
+    }
+    flush();
+  });
+  const joined: Array<{ pos: number; text: string }> = [];
+  for (const block of blocks) {
+    const previous = joined[joined.length - 1];
+    if (previous && !UNIT_HEAD.test(block.text)) {
+      if (/(?:와|과|,|·)$/.test(previous.text)) {
+        previous.text = polishSpacing(`${previous.text} ${block.text}`);
+        previous.pos = (previous.pos + block.pos) / 2;
+      }
+    } else joined.push({ ...block });
+  }
+  return joined;
+}
+
+function assignUnitAnchors(rows: string[][], positions: number[], anchors: Array<{ pos: number; text: string }>): void {
+  if (anchors.length === 0) return;
+  const anchorSubject = anchors.map((anchor) => {
+    let best = 0;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    positions.forEach((pos, index) => {
+      const distance = Math.abs(pos - anchor.pos);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    });
+    return rows[best + 1]?.[0] ?? "";
+  });
+  positions.forEach((pos, index) => {
+    const row = rows[index + 1];
+    if (!row) return;
+    const subject = row[0] ?? "";
+    const usable = anchors
+      .map((anchor, anchorIndex) => ({ anchor, anchorIndex }))
+      .filter((item) => !subject || anchorSubject[item.anchorIndex] === subject);
+    const pool = usable.length > 0 ? usable : anchors.map((anchor, anchorIndex) => ({ anchor, anchorIndex }));
+    let chosen = pool[0];
+    for (let cursor = 0; cursor < pool.length; cursor += 1) {
+      const current = pool[cursor];
+      const next = pool[cursor + 1];
+      const bound = next ? current.anchor.pos + (next.anchor.pos - current.anchor.pos) * 0.62 : Number.POSITIVE_INFINITY
+      if (pos < bound) {
+        chosen = current;
+        break;
+      }
+      chosen = current;
+    }
+    if (chosen?.anchor.text) row[1] = chosen.anchor.text;
+  });
 }
 
 const OUTPUT = ["과목", "단원", "평가요소", "영역", "시기", "평가방법", "성취기준", "상", "중", "하"] as const;
@@ -387,10 +471,12 @@ export function layoutPlanTable(pages: PdfGlyph[][]): string[][] | null {
   const header = findHeader(flat);
   if (!header) return null;
   const rows: string[][] = [OUTPUT.slice()];
+  const positions: number[] = [];
   let previousSubject = "";
   let previousUnit = "";
-  for (const page of pages) {
-    const laid = layoutPage(page, header.columns, pages[0] === page ? header.bodyTop : 820);
+  pages.forEach((page, pageIndex) => {
+    const laid = layoutPage(page, header.columns, pageIndex === 0 ? header.bodyTop : 820);
+    const pagePositions: number[] = [];
     const overflow = OUTPUT.map(() => "");
     header.columns.forEach((column, index) => {
       const slot = outputIndex(column.role, column.label);
@@ -403,7 +489,7 @@ export function layoutPlanTable(pages: PdfGlyph[][]): string[][] | null {
       });
     }
     const pageRows: string[][] = [];
-    for (const row of laid.rows) {
+    laid.rows.forEach((row, rowIndex) => {
       const output = OUTPUT.map(() => "");
       header.columns.forEach((column, index) => {
         const slot = outputIndex(column.role, column.label);
@@ -413,16 +499,11 @@ export function layoutPlanTable(pages: PdfGlyph[][]): string[][] | null {
         const coded = findCodes(output[6] ?? "").map((code) => subjectFromCode(code)).find((name): name is string => Boolean(name));
         if (coded) output[0] = coded;
       }
-      if (output.some((cell) => cell.trim())) pageRows.push(output);
-    }
-    const firstUnit = pageRows.findIndex((row) => row[1]?.trim());
-    if (firstUnit > 0) {
-      const title = pageRows[firstUnit]?.[1] ?? "";
-      for (let index = 0; index < firstUnit; index += 1) {
-        const row = pageRows[index];
-        if (row && !row[1]) row[1] = title;
+      if (output.some((cell) => cell.trim())) {
+        pageRows.push(output);
+        pagePositions.push(place(pageIndex, laid.centers[rowIndex] ?? 400));
       }
-    }
+    });
     if (pageRows.length > 0 && rows.length > 1) {
       const previous = rows[rows.length - 1];
       const first = pageRows[0];
@@ -432,17 +513,22 @@ export function layoutPlanTable(pages: PdfGlyph[][]): string[][] | null {
           previous[index] = appendText(previous[index] ?? "", cell);
         });
         pageRows.shift();
+        const extra = pagePositions.shift();
+        const start = positions[positions.length - 1];
+        if (start !== undefined && extra !== undefined) positions[positions.length - 1] = (start + extra) / 2;
       }
     }
-    for (const output of pageRows) {
+    pageRows.forEach((output, index) => {
       if (!output[0]) output[0] = previousSubject;
       if (output[0] !== previousSubject) previousUnit = "";
       previousSubject = output[0] ?? "";
       if (!output[1]) output[1] = previousUnit;
       else previousUnit = output[1];
       rows.push(output);
-    }
-  }
+      positions.push(pagePositions[index] ?? place(pageIndex, 400));
+    });
+  });
+  assignUnitAnchors(rows, positions, unitAnchors(pages, header.columns));
   reclaimLevelTails(rows);
   return rows.length > 1 ? rows : null;
 }
