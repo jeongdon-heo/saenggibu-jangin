@@ -8,7 +8,7 @@ declare global {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 import { createRoot } from "react-dom/client";
 import { describe, expect, it } from "vitest";
-import { StandardCodes, TopicPagesView } from "./TeachPage";
+import { shortcutCell, StandardCodes, TopicPagesView } from "./TeachPage";
 import type { PageHint } from "../lib/textbookPages";
 
 async function render(node: ReactNode) {
@@ -91,6 +91,16 @@ describe("성취기준 코드", () => {
     await act(async () => {
       root.unmount();
     });
+  });
+
+  it("칸 안의 버튼에 포커스가 있어도 그 칸의 학생과 주제를 찾는다", () => {
+    const host = document.createElement("div");
+    host.innerHTML = `<table><tbody><tr><td data-student-id="s1" data-unit-id="u1"><button type="button">상</button></td></tr></tbody></table>`;
+    document.body.append(host);
+    const button = host.querySelector("button");
+    expect(shortcutCell(button)).toEqual({ studentId: "s1", unitId: "u1" });
+    expect(shortcutCell(document.body)).toBeNull();
+    host.remove();
   });
 
   it("연결된 성취기준이 없으면 아무것도 그리지 않는다", async () => {
