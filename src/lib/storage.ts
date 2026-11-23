@@ -19,6 +19,7 @@ import type {
   Standard,
   Student,
   StudentRecord,
+  ProgressLesson,
   Subject,
   Unit,
 } from "../types";
@@ -180,9 +181,11 @@ function normalizeSubjects(value: unknown): Result<Subject[]> {
     if (!units.ok) return units;
     const elements = normalizeElements(item.elements ?? []);
     if (!elements.ok) return elements;
+    const lessons = normalizeLessons(item.lessons ?? []);
+    if (!lessons.ok) return lessons;
     ids.add(id);
     names.add(name);
-    subjects.push({ id, name, plan: plan.data, standards: standards.data, units: units.data, elements: elements.data });
+    subjects.push({ id, name, plan: plan.data, standards: standards.data, units: units.data, elements: elements.data, lessons: lessons.data });
   }
   return { ok: true, data: subjects };
 }
@@ -219,9 +222,39 @@ function normalizeUnits(value: unknown): Result<Unit[]> {
       materials: asString(item.materials, LIMITS.shortField, "") ?? "",
       skipped: item.skipped === true,
       elementId: asString(item.elementId, 80, "") ?? "",
+      chosenPages: asString(item.chosenPages, 40, "") ?? "",
     });
   }
   return { ok: true, data: units };
+}
+
+function normalizeLessons(value: unknown): Result<ProgressLesson[]> {
+  if (!Array.isArray(value)) return { ok: false, error: "차시 형식이 올바르지 않습니다." };
+  if (value.length > LIMITS.lessons) return { ok: false, error: "차시가 너무 많습니다." };
+  const lessons: ProgressLesson[] = [];
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item)) return { ok: false, error: "차시 형식이 올바르지 않습니다." };
+    const id = asString(item.id, 80);
+    const title = asString(item.title, LIMITS.shortField, "") ?? "";
+    if (!id || !title) continue;
+    if (ids.has(id)) continue;
+    const grade = item.grade === null || item.grade === undefined || item.grade === "" ? null : asInt(item.grade);
+    const semester = item.semester === null || item.semester === undefined || item.semester === "" ? null : asInt(item.semester);
+    ids.add(id);
+    lessons.push({
+      id,
+      order: asInt(item.order) ?? lessons.length + 1,
+      grade,
+      semester: semester === 1 || semester === 2 ? semester : null,
+      title,
+      content: asString(item.content, LIMITS.standardText, "") ?? "",
+      pages: asString(item.pages, 40, "") ?? "",
+      extraPages: asString(item.extraPages, 40, "") ?? "",
+      period: asString(item.period, 40, "") ?? "",
+    });
+  }
+  return { ok: true, data: lessons };
 }
 
 function normalizeLevels(value: unknown): Result<LevelCriterion[]> {

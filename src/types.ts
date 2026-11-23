@@ -46,6 +46,19 @@ export type Unit = {
   materials: string;
   skipped: boolean;
   elementId: string;
+  chosenPages?: string;
+};
+
+export type ProgressLesson = {
+  id: string;
+  order: number;
+  grade: number | null;
+  semester: number | null;
+  title: string;
+  content: string;
+  pages: string;
+  extraPages: string;
+  period: string;
 };
 
 export type EvidenceKind = "observe" | "paper" | "performance";
@@ -118,6 +131,7 @@ export type Subject = {
   standards: Standard[];
   units: Unit[];
   elements: EvaluationElement[];
+  lessons?: ProgressLesson[];
 };
 
 export type StudentRecord = {

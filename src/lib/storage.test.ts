@@ -25,6 +25,7 @@ function sample(): AppData {
         standards: [{ id: "st1", code: "6국01-01", text: "성취기준 내용" }],
         units: [],
         elements: [],
+        lessons: [],
       },
     ],
     questions: [],
@@ -154,6 +155,37 @@ describe("백업 저장과 불러오기", () => {
     expect(loaded.rawBackup).toBe("{broken");
     expect(loaded.warning).toContain("읽지 못했습니다");
     expect(loaded.data.students).toEqual([]);
+  });
+
+  it("차시 쪽수와 선생님이 고른 쪽수를 백업에 넣었다가 되돌린다", () => {
+    const data = sample();
+    data.subjects[0]!.lessons = [
+      { id: "ls1", order: 1, grade: 4, semester: 2, title: "1. 민주주의와 자치", content: "주민 자치란 무엇일까요", pages: "34~35", extraPages: "", period: "10" },
+    ];
+    data.subjects[0]!.units = [
+      {
+        id: "u1",
+        order: 1,
+        grade: 4,
+        semester: 2,
+        organization: "사회",
+        title: "1. 민주주의와 자치",
+        content: "",
+        pages: "",
+        extraPages: "",
+        period: "",
+        totalPeriods: "",
+        materials: "",
+        skipped: false,
+        elementId: "",
+        chosenPages: "34~35",
+      },
+    ];
+    const parsed = parseBackup(serializeBackup(data));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.data.subjects[0]?.lessons?.[0]).toMatchObject({ pages: "34~35", content: "주민 자치란 무엇일까요" });
+    expect(parsed.data.subjects[0]?.units[0]?.chosenPages).toBe("34~35");
   });
 
   it("확장자나 형식이 달라도 백업 내용이면 받고, 다른 파일은 거절한다", async () => {

@@ -1,8 +1,9 @@
-import type { AppData, EvaluationElement, LevelCriterion, Question, QuestionTypeId, Result, Unit } from "../types";
+import type { AppData, EvaluationElement, LevelCriterion, ProgressLesson, Question, QuestionTypeId, Result, Unit } from "../types";
 import { createId } from "./id";
 import { LIMITS } from "./limits";
 import type { ParsedElement } from "./elementsParse";
 import type { ParsedUnit } from "./progressSheet";
+import { isCreativeSubject } from "./textbookPages";
 import { suggestSkip } from "./topics";
 import type { ParsedQuestion } from "./questionParse";
 import { buildQuestionPrompt, type PromptContext } from "./prompt";
@@ -26,6 +27,7 @@ export function addUnits(data: AppData, subjectId: string, units: ParsedUnit[], 
     id: createId(),
     skipped: suggestSkip(unit.title, unit.content),
     elementId: "",
+    chosenPages: "",
   }));
   const next = mode === "replace" ? created : [...subject.units, ...created];
   if (next.length > LIMITS.units) return { ok: false, error: `단원은 ${LIMITS.units}개까지 넣을 수 있습니다.` };
@@ -57,7 +59,7 @@ export function updateUnit(
   data: AppData,
   subjectId: string,
   unitId: string,
-  patch: { skipped?: boolean; elementId?: string },
+  patch: { skipped?: boolean; elementId?: string; chosenPages?: string },
 ): AppData {
   return mapSubject(data, subjectId, (subject) => ({
     ...subject,
@@ -67,6 +69,36 @@ export function updateUnit(
       return element;
     }),
   }));
+}
+
+export function storeProgressLessons(data: AppData, rows: ParsedUnit[]): { data: AppData; stored: number } {
+  const grouped = new Map<string, ParsedUnit[]>();
+  for (const row of rows) {
+    if (!row.organization || isCreativeSubject(row.organization) || !row.title.trim()) continue;
+    const bucket = grouped.get(row.organization) ?? [];
+    bucket.push(row);
+    grouped.set(row.organization, bucket);
+  }
+  let stored = 0;
+  let next = data;
+  for (const [organization, lessons] of grouped) {
+    const subject = next.subjects.find((item) => item.name.replace(/\s+/g, "") === organization.replace(/\s+/g, ""));
+    if (!subject) continue;
+    const created: ProgressLesson[] = lessons.slice(0, LIMITS.lessons).map((lesson, index) => ({
+      id: createId(),
+      order: lesson.order || index + 1,
+      grade: lesson.grade,
+      semester: lesson.semester === 1 || lesson.semester === 2 ? lesson.semester : null,
+      title: lesson.title,
+      content: lesson.content,
+      pages: lesson.pages,
+      extraPages: lesson.extraPages,
+      period: lesson.period,
+    }));
+    stored += created.length;
+    next = mapSubject(next, subject.id, (current) => ({ ...current, lessons: created }));
+  }
+  return { data: next, stored };
 }
 
 export function applySkipSuggestions(data: AppData, subjectId: string): AppData {

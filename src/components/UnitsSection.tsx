@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAppData } from "../context/DataContext";
-import { addUnits, applySkipSuggestions, deleteUnit, updateUnit } from "../lib/curriculum";
+import { addUnits, applySkipSuggestions, deleteUnit, storeProgressLessons, updateUnit } from "../lib/curriculum";
 import { suggestSkip } from "../lib/topics";
 import { orderedTopics } from "../lib/teacherAssess";
 import { parseProgressTable, type ParsedUnit } from "../lib/progressSheet";
@@ -59,6 +59,18 @@ export function UnitsSection({ subject }: { subject: Subject }) {
     setMapping(nextMapping);
     setRows(parsed.data);
     setMessage(`단원 ${parsed.data.length}개를 읽었습니다. 넣을 과목을 확인하고 추가하세요.`);
+  }
+
+  function saveLessons() {
+    if (!rows) return;
+    const stored = storeProgressLessons(data, rows);
+    if (stored.stored === 0) {
+      setMessage("저장할 차시가 없습니다. 편제 이름이 과목 이름과 같은 행만 쪽수로 남깁니다.");
+      return;
+    }
+    apply(stored.data);
+    setRows(null);
+    setMessage(`차시 ${stored.stored}개를 쪽수 자료로 저장했습니다. 평가 열은 그대로입니다.`);
   }
 
   function commit(mode: "append" | "replace") {
@@ -184,7 +196,8 @@ export function UnitsSection({ subject }: { subject: Subject }) {
             ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button onClick={() => commit("append")}>단원 추가</Button>
+            <Button onClick={saveLessons}>차시 쪽수 저장</Button>
+            <Button variant="secondary" onClick={() => commit("append")}>단원 추가</Button>
             <Button variant="secondary" onClick={() => commit("replace")}>
               기존 단원을 바꾸고 넣기
             </Button>
