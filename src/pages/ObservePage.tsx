@@ -7,6 +7,7 @@ import { useAppData } from "../context/DataContext";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { checkComment } from "../lib/commentCheck";
 import { evidenceLabel, markDraft, observationSeed } from "../lib/evidence";
+import { appendObservationToDraft } from "../lib/exportRows";
 import { findRecord, sortedStudents, upsertRecord } from "../lib/model";
 
 export function ObservePage() {
@@ -24,7 +25,7 @@ export function ObservePage() {
         description="평어 가운데 수행평가가 아닌 관찰·지필 내용이 있으면, 그 문장으로 나이스 관찰기록을 만듭니다."
       />
       <p className="rounded-2xl border border-[#ead7b8] bg-warn-soft px-4 py-3 text-sm leading-6">
-        다듬은 문장도 초안입니다. 선생님이 읽고 ‘확인 완료’를 누른 뒤에만 나이스 복사와 엑셀에 들어갑니다.
+        다듬은 문장도 초안입니다. ‘확인 완료’를 누른 관찰기록은 교과 평어와 따로 나이스 화면과 엑셀에 들어갑니다. 평어에 합치기를 누를 때만 문장을 평어 뒤에 붙이며, 그때는 평어를 다시 확인합니다.
       </p>
       {!subject ? (
         <p className="sheet mt-4 px-5 py-8 text-sm text-muted">과목을 먼저 등록해 주세요.</p>
@@ -88,13 +89,22 @@ export function ObservePage() {
                     ))}
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                       <CountMeta text={text} />
-                      <Button
-                        variant={record?.observationConfirmed ? "secondary" : "primary"}
-                        disabled={!text.trim()}
-                        onClick={() => apply(upsertRecord(data, student.id, subject.id, { observationConfirmed: !record?.observationConfirmed }).data)}
-                      >
-                        {record?.observationConfirmed ? "확인 취소" : "확인 완료"}
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                          disabled={!text.trim() || appendObservationToDraft(record?.draft ?? "", text) === (record?.draft ?? "")}
+                          onClick={() => apply(upsertRecord(data, student.id, subject.id, { draft: appendObservationToDraft(record?.draft ?? "", text) }).data)}
+                        >
+                          평어에 합치기
+                        </Button>
+                        <Button
+                          variant={record?.observationConfirmed ? "secondary" : "primary"}
+                          disabled={!text.trim()}
+                          onClick={() => apply(upsertRecord(data, student.id, subject.id, { observationConfirmed: !record?.observationConfirmed }).data)}
+                        >
+                          {record?.observationConfirmed ? "확인 취소" : "확인 완료"}
+                        </Button>
+                      </div>
                     </div>
                   </li>
                 );

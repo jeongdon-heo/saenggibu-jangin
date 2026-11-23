@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, type KeyboardEvent } from "react";
+import { memo, useCallback, useMemo, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { cx, PageHeader } from "../components/ui";
 import { useAppData } from "../context/DataContext";
@@ -8,7 +8,15 @@ import { usePageTitle } from "../hooks/usePageTitle";
 import { sortedStudents } from "../lib/model";
 import { rememberSubject, rememberedSubject } from "../lib/subjectChoice";
 import { bulkSetColumn, EVIDENCE_LABEL, findCheck, lessonTopics, levelLabels, toggleEvidence, topicStandards, upsertTeacherCheck } from "../lib/teacherAssess";
-import type { EvidenceKind, Student, Subject, Unit } from "../types";
+import type { EvidenceKind, Student, TeacherCheck, Unit } from "../types";
+
+type TeachColumn = {
+  topic: Unit;
+  labels: string[];
+  standards: Array<{ code: string; text: string }>;
+  hint: PageHint | null;
+  elementName: string;
+};
 
 const KINDS: EvidenceKind[] = ["observe", "paper", "performance"];
 const KIND_KEY: Record<string, EvidenceKind> = { q: "observe", w: "paper", e: "performance" };
@@ -33,8 +41,23 @@ export function TeachPage() {
     data.subjects.find((item) => item.id === rememberedSubject(data.subjects.map((entry) => entry.id))) ??
     data.subjects[0] ??
     null;
-  const students = sortedStudents(data.students);
-  const topics = subject ? lessonTopics(subject) : [];
+  const students = useMemo(() => sortedStudents(data.students), [data.students]);
+  const columns = useMemo<TeachColumn[]>(() => {
+    if (!subject) return [];
+    return lessonTopics(subject).map((topic) => ({
+      topic,
+      labels: levelLabels(subject, topic),
+      standards: topicStandards(subject, topic),
+      hint: pageHint(subject, topic),
+      elementName: subject.elements.find((element) => element.id === topic.elementId)?.name || "평가요소 없음",
+    }));
+  }, [subject]);
+  const checks = useMemo(() => {
+    const index = new Map<string, TeacherCheck>();
+    for (const check of data.teacherChecks) index.set(`${check.studentId}:${check.unitId}`, check);
+    return index;
+  }, [data.teacherChecks]);
+  const topics = useMemo(() => columns.map((column) => column.topic), [columns]);
   const setLevel = useCallback((studentId: string, unitId: string, level: string) => {
     apply((current) => {
       const owner = current.subjects.find((item) => item.units.some((unit) => unit.id === unitId));
@@ -56,6 +79,20 @@ export function TeachPage() {
       const owner = current.subjects.find((item) => item.units.some((unit) => unit.id === unitId));
       if (!owner) return current;
       return upsertTeacherCheck(current, studentId, owner.id, unitId, { note });
+    });
+  }, [apply]);
+  const savePages = useCallback((unitId: string, pages: string) => {
+    apply((current) => {
+      const owner = current.subjects.find((item) => item.units.some((unit) => unit.id === unitId));
+      if (!owner) return current;
+      return updateUnit(current, owner.id, unitId, { chosenPages: pages.trim() });
+    });
+  }, [apply]);
+  const setColumnLevel = useCallback((unitId: string, level: string) => {
+    apply((current) => {
+      const owner = current.subjects.find((item) => item.units.some((unit) => unit.id === unitId));
+      if (!owner) return current;
+      return bulkSetColumn(current, owner.id, unitId, level);
     });
   }, [apply]);
 
@@ -139,33 +176,12 @@ export function TeachPage() {
             <>
               <p className="mt-3 text-sm leading-6 text-muted">칸을 고른 뒤 방향키로 이동합니다. 1·2·3은 수준, Q 관찰, W 지필, E 수행평가, Backspace는 수준을 지웁니다.</p>
               <div className="mt-3 overflow-x-auto" role="grid" tabIndex={0} onKeyDown={onKey}>
-                <table className="w-full min-w-[48rem] border-separate border-spacing-0 text-sm">
+                <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
                       <th className={studentColumnClass}>번호</th>
-                      {topics.map((topic) => (
-                        <th key={topic.id} className="relative min-w-44 px-2 py-2 text-left align-bottom font-medium">
-                          <span className="block">{topic.title}</span>
-                          <span className="mt-0.5 block text-xs font-normal text-muted">{subject.elements.find((element) => element.id === topic.elementId)?.name || "평가요소 없음"}</span>
-                          <StandardCodes standards={topicStandards(subject, topic)} />
-                          <TopicPages subject={subject} topic={topic} />
-                          <select
-                            className="control mt-2 h-9 text-xs"
-                            aria-label={`${topic.title} 열 전체 수준`}
-                            value=""
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              if (!value) return;
-                              apply(bulkSetColumn(data, subject.id, topic.id, value === "__clear" ? "" : value));
-                            }}
-                          >
-                            <option value="">이 열 전체</option>
-                            {levelLabels(subject, topic).map((label) => (
-                              <option key={label} value={label}>{label}</option>
-                            ))}
-                            <option value="__clear">비우기</option>
-                          </select>
-                        </th>
+                      {columns.map((column) => (
+                        <TopicHeader key={column.topic.id} column={column} onSavePages={savePages} onBulk={setColumnLevel} />
                       ))}
                     </tr>
                   </thead>
@@ -175,14 +191,14 @@ export function TeachPage() {
                         <th className={studentColumnClass}>
                           <span className="block truncate">{student.number} {student.alias || ""}</span>
                         </th>
-                        {topics.map((topic) => (
+                        {columns.map((column) => (
                           <MemoCell
-                            key={topic.id}
+                            key={column.topic.id}
                             student={student}
-                            topic={topic}
-                            labels={levelLabels(subject, topic)}
-                            check={findCheck(data, student.id, topic.id)}
-                            active={focus?.studentId === student.id && focus.unitId === topic.id}
+                            topic={column.topic}
+                            labels={column.labels}
+                            check={checks.get(`${student.id}:${column.topic.id}`)}
+                            active={focus?.studentId === student.id && focus.unitId === column.topic.id}
                             onFocus={setFocus}
                             onLevel={setLevel}
                             onEvidence={setEvidence}
@@ -205,16 +221,44 @@ export function TeachPage() {
   );
 }
 
-function TopicPages({ subject, topic }: { subject: Subject; topic: Unit }) {
-  const { data, apply } = useAppData();
-  const hint = pageHint(subject, topic);
+const TopicHeader = memo(function TopicHeader({
+  column,
+  onSavePages,
+  onBulk,
+}: {
+  column: TeachColumn;
+  onSavePages: (unitId: string, pages: string) => void;
+  onBulk: (unitId: string, level: string) => void;
+}) {
+  const save = useCallback((pages: string) => onSavePages(column.topic.id, pages), [column.topic.id, onSavePages]);
+  return (
+    <th className="relative w-44 min-w-44 px-2 py-2 text-left align-bottom font-medium">
+      <span className="block">{column.topic.title}</span>
+      <span className="mt-0.5 block text-xs font-normal text-muted">{column.elementName}</span>
+      <StandardCodes standards={column.standards} />
+      {column.hint ? <TopicPages hint={column.hint} onSave={save} /> : null}
+      <select
+        className="control mt-2 h-9 text-xs"
+        aria-label={`${column.topic.title} 열 전체 수준`}
+        value=""
+        onChange={(event) => {
+          const value = event.target.value;
+          if (value) onBulk(column.topic.id, value === "__clear" ? "" : value);
+        }}
+      >
+        <option value="">이 열 전체</option>
+        {column.labels.map((label) => (
+          <option key={label} value={label}>{label}</option>
+        ))}
+        <option value="__clear">비우기</option>
+      </select>
+    </th>
+  );
+});
+
+const TopicPages = memo(function TopicPages({ hint, onSave }: { hint: PageHint; onSave: (pages: string) => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  if (!hint) return null;
-  function save(pages: string) {
-    apply(updateUnit(data, subject.id, topic.id, { chosenPages: pages.trim() }));
-    setOpen(false);
-  }
   return (
     <TopicPagesView
       hint={hint}
@@ -225,10 +269,13 @@ function TopicPages({ subject, topic }: { subject: Subject; topic: Unit }) {
         setDraft(hint.shownPages);
         setOpen((value) => !value);
       }}
-      onSave={save}
+      onSave={(pages) => {
+        onSave(pages);
+        setOpen(false);
+      }}
     />
   );
-}
+});
 
 export function TopicPagesView({
   hint,
@@ -364,7 +411,10 @@ const MemoCell = memo(function Cell({
             type="button"
             aria-pressed={check?.level === label}
             className={cx("rounded-lg px-2 py-1 text-xs", check?.level === label ? "bg-stage1 font-medium text-white" : "bg-white ring-1 ring-line")}
-            onClick={() => onLevel(student.id, topic.id, label)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onLevel(student.id, topic.id, label);
+            }}
           >
             {label}
           </button>
@@ -379,7 +429,10 @@ const MemoCell = memo(function Cell({
               type="button"
               aria-pressed={on}
               className={cx("rounded-full px-2 py-0.5 text-[11px]", on ? "bg-ink text-white" : "bg-white text-muted ring-1 ring-line")}
-              onClick={() => onEvidence(student.id, topic.id, kind)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEvidence(student.id, topic.id, kind);
+              }}
             >
               {EVIDENCE_LABEL[kind]}
             </button>
