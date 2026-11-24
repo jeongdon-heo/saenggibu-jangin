@@ -1,5 +1,6 @@
 import type { AiSettings, AppData, ClassInfo, Subject } from "../types";
 import { GEMINI_DEFAULT_MODEL } from "./ai";
+import { defaultCommentRules } from "./commentRules";
 import { createId } from "./id";
 
 export function defaultAiSettings(): AiSettings {
@@ -28,6 +29,7 @@ export function emptyData(): AppData {
     teacherChecks: [],
     levelDecisions: [],
     aiSettings: defaultAiSettings(),
+    commentRules: defaultCommentRules(),
   };
 }
 
@@ -188,6 +190,7 @@ export function createDemoData(current?: ClassInfo): AppData {
     ],
     levelDecisions: [],
     aiSettings: defaultAiSettings(),
+    commentRules: defaultCommentRules(),
     records: [
       {
         id: createId(),

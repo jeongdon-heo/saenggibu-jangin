@@ -175,6 +175,8 @@ export type LevelEstimate = {
   note: string;
 };
 
+import type { CommentRules } from "./lib/commentRules";
+
 export type AppData = {
   version: typeof DATA_VERSION;
   classInfo: ClassInfo;
@@ -187,6 +189,7 @@ export type AppData = {
   teacherChecks: TeacherCheck[];
   levelDecisions: LevelDecision[];
   aiSettings: AiSettings;
+  commentRules: CommentRules;
 };
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };

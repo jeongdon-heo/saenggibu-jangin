@@ -5,6 +5,8 @@ import { useAppData } from "../context/DataContext";
 import { completeAi } from "../lib/ai";
 import { applyGeneratedText } from "../lib/commentApply";
 import { parseCommentPaste } from "../lib/commentParse";
+import { CommentRulesPanel } from "./CommentRulesPanel";
+import { defaultCommentRules, lengthBand } from "../lib/commentRules";
 import { buildCommentPrompt, type CommentTone } from "../lib/commentPrompt";
 import { copyText } from "../lib/copyText";
 import { guardPrompt } from "../lib/guard";
@@ -21,15 +23,17 @@ export function CommentActions({
   const { data, apply, aiKey } = useAppData();
   const toast = useToast();
   const [tone, setTone] = useState<CommentTone>("plain");
-  const [length, setLength] = useState(120);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [paste, setPaste] = useState("");
   const label = field === "draft" ? "평어" : "관찰기록";
 
+  const subject = data.subjects.find((item) => item.id === subjectId);
+  const band = lengthBand(data.commentRules ?? defaultCommentRules(), data.classInfo.grade, subject?.name ?? "");
+
   function prepared() {
-    return buildCommentPrompt(data, subjectId, studentIds, tone, length, label);
+    return buildCommentPrompt(data, subjectId, studentIds, tone, band.min, label);
   }
 
   async function generate() {
@@ -117,15 +121,7 @@ export function CommentActions({
             <option value="warm">따뜻하게</option>
           </select>
         </label>
-        <label className="text-sm">
-          대략 글자 수
-          <input
-            className="control mt-1 w-24"
-            inputMode="numeric"
-            value={length}
-            onChange={(event) => setLength(Math.min(400, Number(event.target.value.replace(/[^\d]/g, "") || "0")))}
-          />
-        </label>
+        <p className="text-sm leading-6 text-muted">이 과목 목표 {band.min}~{band.max}자</p>
         <Button disabled={busy} onClick={() => void generate()}>
           {busy ? "만드는 중" : field === "draft" ? "이 과목 평어 초안" : "나이스 문장으로 다듬기"}
         </Button>
@@ -138,6 +134,7 @@ export function CommentActions({
       </div>
       <p className="mt-2 text-sm leading-6 text-muted">자리표시(학생A)만 보내고, 번호·별칭·실명·학생 답은 보내지 않습니다. 돌아온 문장은 이 브라우저에서 학생에게 다시 연결합니다.</p>
       {error ? <p className="mt-3 text-sm leading-6 text-danger">{error}</p> : null}
+      {field === "draft" ? <CommentRulesPanel /> : null}
       {pasteOpen ? (
         <Modal title={`${label} 결과 붙여넣기`} onClose={() => setPasteOpen(false)}>
           <textarea className="control" rows={8} value={paste} onChange={(event) => setPaste(event.target.value)} />

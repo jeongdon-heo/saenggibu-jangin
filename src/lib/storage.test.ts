@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defaultCommentRules } from "./commentRules";
 import { emptyData } from "./defaults";
 import {
   createMemoryStorage,
@@ -34,6 +35,7 @@ function sample(): AppData {
     teacherChecks: [],
     levelDecisions: [],
     aiSettings: { provider: "gemini", model: "gemini-3.8-flash", rememberKey: false },
+    commentRules: defaultCommentRules(),
     records: [
       {
         id: "r1",
@@ -93,6 +95,27 @@ describe("백업 저장과 불러오기", () => {
     const openai = parseBackup(JSON.stringify({ ...sample(), aiSettings: { provider: "openai", model: "gpt-4o-mini", rememberKey: false } }));
     expect(openai.ok).toBe(true);
     if (openai.ok) expect(openai.data.aiSettings.model).toBe("gpt-4o-mini");
+  });
+
+  it("평어 규칙이 없는 예전 백업은 기본 규칙을 채우고, 고친 규칙은 유지한다", () => {
+    const legacy = sample();
+    const raw = { ...legacy } as Partial<typeof legacy>;
+    delete raw.commentRules;
+    const parsed = parseBackup(JSON.stringify(raw));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.data.commentRules.sentenceMin).toBe(3);
+    expect(parsed.data.commentRules.allowHope).toBe(false);
+    const custom = {
+      ...sample(),
+      commentRules: { ...defaultCommentRules(), sentenceMax: 4, extra: "존댓말은 피함", allowHope: true },
+    };
+    const kept = parseBackup(JSON.stringify(custom));
+    expect(kept.ok).toBe(true);
+    if (!kept.ok) return;
+    expect(kept.data.commentRules.sentenceMax).toBe(4);
+    expect(kept.data.commentRules.extra).toBe("존댓말은 피함");
+    expect(kept.data.commentRules.allowHope).toBe(true);
   });
 
   it("실명 항목이 없어도 학생을 받는다", () => {
