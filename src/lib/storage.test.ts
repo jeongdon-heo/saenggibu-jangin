@@ -104,18 +104,30 @@ describe("백업 저장과 불러오기", () => {
     const parsed = parseBackup(JSON.stringify(raw));
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.data.commentRules.sentenceMin).toBe(3);
-    expect(parsed.data.commentRules.allowHope).toBe(false);
+    expect(parsed.data.commentRules).toEqual(defaultCommentRules());
     const custom = {
       ...sample(),
-      commentRules: { ...defaultCommentRules(), sentenceMax: 4, extra: "존댓말은 피함", allowHope: true },
+      commentRules: {
+        sentenceMin: 3,
+        allowHope: true,
+        varyWords: ["표현함"],
+        lengthMin: 300,
+        lengthMax: 360,
+        extra: "존댓말은 피함",
+        leftover: true,
+      },
     };
     const kept = parseBackup(JSON.stringify(custom));
     expect(kept.ok).toBe(true);
     if (!kept.ok) return;
-    expect(kept.data.commentRules.sentenceMax).toBe(4);
-    expect(kept.data.commentRules.extra).toBe("존댓말은 피함");
-    expect(kept.data.commentRules.allowHope).toBe(true);
+    expect(kept.data.commentRules).toEqual({
+      lengthMin: 300,
+      lengthMax: 360,
+      nounEnding: true,
+      concreteLevel: true,
+      noHope: false,
+      extra: "존댓말은 피함",
+    });
   });
 
   it("실명 항목이 없어도 학생을 받는다", () => {
