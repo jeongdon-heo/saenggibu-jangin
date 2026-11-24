@@ -1,4 +1,5 @@
 import { migrateGeminiModel, GEMINI_DEFAULT_MODEL } from "./ai";
+import { normalizeCommentRules } from "./commentRules";
 import { defaultAiSettings, emptyData } from "./defaults";
 import { LIMITS } from "./limits";
 import type {
@@ -427,6 +428,7 @@ export function normalizeAppData(value: unknown): Result<AppData> {
       teacherChecks: teacherChecks.data,
       levelDecisions: levelDecisions.data,
       aiSettings: normalizeAiSettings(value.aiSettings),
+      commentRules: normalizeCommentRules(value.commentRules),
     },
   };
 }

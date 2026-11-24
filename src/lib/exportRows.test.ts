@@ -1,5 +1,6 @@
 import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
+import { defaultCommentRules } from "./commentRules";
 import { appendObservationToDraft, buildExportRows, buildExportTable } from "./exportRows";
 import { countChars, countNeisBytes } from "./textCount";
 import { buildXlsxBytes } from "./xlsx";
@@ -13,6 +14,7 @@ const data: AppData = {
   teacherChecks: [],
   levelDecisions: [],
   aiSettings: { provider: "gemini", model: "gemini-3.8-flash", rememberKey: false },
+  commentRules: defaultCommentRules(),
   classInfo: { schoolYear: 2026, semester: 2, grade: 6, classLabel: "1" },
   students: [
     { id: "s2", number: 2, alias: "ㄷㄹ", realName: "홍길동" },
