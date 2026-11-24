@@ -59,28 +59,14 @@ const TONE_LINE: Record<CommentTone, string> = {
 export function commentStyleLines(rules: CommentRules, grade: number | null, subject: string, tone: CommentTone, field: "평어" | "관찰기록"): string[] {
   const band = lengthBand(rules, grade, subject);
   const lines = [
-    `한 과목은 ${Math.min(rules.sentenceMin, rules.sentenceMax)}~${Math.max(rules.sentenceMin, rules.sentenceMax)}문장으로 쓰고, 문장은 단원이나 성취기준마다 나누세요.`,
-    "각 문장은 학습 내용이나 활동, 그리고 수행 정도나 능력을 담으세요. 태도는 필요할 때만 붙이세요.",
-    rules.allowHope
-      ? "성장이 더 필요하면 '앞으로 ~하기를 바람'처럼 기대를 한 문장 적어도 됩니다."
-      : "앞으로 ~하기를 바람, 기대됨처럼 앞으로의 기대를 적지 마세요.",
-    "종결은 명사형만 쓰세요. 입니다체와 해요체는 쓰지 마세요.",
-    `어미는 대략 ~함 ${rules.endings.ham}%, ~음·ㅁ(나타냄, 만듦, 앎, 씀. 표현함은 ~함) ${rules.endings.eum}%, ~할 수 있음 ${rules.endings.can}%, ~임·보임 ${rules.endings.im}%, ~있음 ${rules.endings.has}%로 섞으세요.`,
-    "상·중·하라는 수준 이름은 문장에 쓰지 마세요. 수준은 부사와 동사로만 드러내세요.",
-    `높은 수준: ${rules.highWords.join(", ") || "준 수준 설명에 맞게"}`,
-    `중간 수준: ${rules.midWords.join(", ") || "준 수준 설명에 맞게"}`,
-    `기초 수준: ${rules.lowWords.join(", ") || "준 수준 설명에 맞게"}. 약한 점은 노력, 과정, 보완으로 적고 미흡·부족이라고 단정하지 마세요.`,
     field === "평어"
-      ? `글자 수는 공백 포함 ${band.min}~${band.max}자를 목표로 하세요. 250~400자는 나이스 바이트 약 600~1,000에 가깝습니다.`
-      : "관찰기록은 준 문장만 다듬으세요. 문장 수와 글자 수 목표는 평어용이며, 근거보다 길게 늘리지 마세요.",
+      ? `글자 수는 공백 포함 ${band.min}~${band.max}자를 목표로 하세요.`
+      : "관찰기록은 준 문장만 다듬고, 근거보다 길게 늘리지 마세요.",
+    rules.nounEnding ? "'~함', '~임', '~보임' 같은 명사형 종결로 쓰고, 같은 어미를 연달아 반복하지 마세요. 종결 어미를 고루 섞어 쓰세요." : "",
+    rules.concreteLevel ? "성취 수준은 '우수함', '부족함' 같은 등급 말이 아니라 구체적인 표현으로 드러내세요." : "",
+    rules.noHope ? "'~할 것으로 기대됨' 같은 기대·당부 문장은 넣지 마세요." : "",
     "없는 사실은 만들지 마세요. 준 근거 밖 내용은 넣지 마세요.",
-    "성취기준 문장을 그대로 베끼지 마세요.",
-    "학생마다 성취기준의 뼈대는 같아도 문장 전체를 같이 쓰지 마세요. 정도 부사와 수행 동사를 학생마다 바꾸세요.",
-    rules.varyWords.length > 0 ? `같은 말에 치우치지 마세요: ${rules.varyWords.join(", ")}` : "",
-    "교외 수상, 대회 수상, 사교육, 기관명, 가족 신상, 어학·인증시험, 부모 직업과 가정 형편, 특정 대학·상호·강사, 해외 활동, 자격증, 방과후학교는 쓰지 마세요.",
-    "한 과목의 평가요소는 한 덩어리로 잇고, 요소마다 사실을 빠뜨리지 마세요.",
-    "교사 평가와 학생 설문 수준이 다르면 교사 평가 수준으로 쓰세요. 수준 이름은 문장에 옮기지 마세요.",
-    "관찰·지필 메모에 있는 사실만 그 근거로 적어도 됩니다. 수행평가 수준만 있는 내용은 관찰한 것처럼 꾸미지 마세요.",
+    "교사 평가와 학생 설문 수준이 다르면 교사 평가 수준으로 쓰세요.",
     TONE_LINE[tone],
     rules.extra.trim() ? `선생님 추가 규칙: ${rules.extra.trim()}` : "",
   ];
